@@ -56,3 +56,24 @@ export function photoSlotUV(slotIndex: number): { colInZone: number; rowInZone: 
   const col = slotIndex % GRID_COLS;
   return { colInZone: col - ZONES.P.col, rowInZone: row - ZONES.P.row };
 }
+
+// Production copy for hero overlay and About video wall zones (§6 Overlay UI, §4 zone mapping, §5 state machine)
+// Single importable source for all user-facing text; layout/positioning owned by components.
+export const heroCopy = {
+  wordmark: "Raed Siddiqui",
+  nav: ["Work", "Lab", "About", "Contact"] as const,
+  headerCta: { label: "Availability", href: "#contact" },
+  headline: "Architecting autonomous AI systems\nand high-performance web platforms.",
+  primaryCta: { label: "View selected work \u2193", href: "#work" },
+  onboardingHint: "Drag to explore the sphere",
+} as const;
+
+export const aboutZones = {
+  E: { label: "01 \u2014 THE PRACTICE", zone: "E" as const },
+  H: { label: "Engineering at the edge of AI and automation.", zone: "H" as const },
+  B: { label: "I build autonomous agents and scalable platforms that replace manual overhead with intelligent code.", zone: "B" as const },
+  T: { label: "AI AGENTS \u00b7 REACT \u00b7 FASTAPI \u00b7 SYSTEMS", zone: "T" as const },
+  C1: { label: "Email", href: "mailto:raedsiddiquie4@gmail.com", zone: "C1" as const },
+  C2: { label: "Index", href: "#work", zone: "C2" as const },
+} as const;
+

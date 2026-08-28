@@ -57,7 +57,7 @@ export default function App() {
 
     const debounced = () => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(checkAndFlip, 140);
+      debounceTimer = setTimeout(checkAndFlip, 150);
     };
 
     const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -184,6 +184,16 @@ export default function App() {
         pin: true,
         scrub: 0.6,
         anticipatePin: 1,
+        // Progress budget (v2, §6) — single scrub drives all beats:
+        //   Flight (position/rotation/spacing lerp) 0 → 0.62
+        //   Thumbnail fade to black                 0.62 → 0.74
+        //   Edge-stroke boost to 0.9                0.74 → 0.78 (holds to 0.82 blueprint)
+        //   Reveal (strokes→0, mosaic+text in)      0.82 → 0.94
+        //   Settled buffer (no visual change)       0.94 → 1.0
+        // TODO — GSAP timeline (when introduced): map these breakpoints to keyframes on a
+        // single declarative timeline scrubbed by ScrollTrigger (spec §16). Animate driver
+        // scalars only; one rAF reads them and applies per-card math. Keep continuous props
+        // linear; arrival-fade and stroke-boost are the only authored beats.
         onUpdate: (self) => {
           const p = self.progress;
           if (p > 0.005 && !hasScrolledRef.current) {
@@ -413,8 +423,14 @@ export default function App() {
           }}
         >
           <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", userSelect: "none" }}>
-            SPHERE
+            Raed Siddiqui
           </div>
+          <nav aria-label="Primary" style={{ display: "flex", alignItems: "center", gap: 18, pointerEvents: "auto" }}>
+            <a href="#work" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Work</a>
+            <a href="#lab" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Lab</a>
+            <a href="#about" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>About</a>
+            <a href="#contact" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Contact</a>
+          </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 10, pointerEvents: "auto" }}>
             <button
               type="button"
@@ -468,7 +484,7 @@ export default function App() {
                 transition: "opacity 260ms ease",
               }}
             >
-              Get in touch
+              Availability
             </a>
           </div>
         </div>
@@ -496,7 +512,7 @@ export default function App() {
               textWrap: "balance",
             }}
           >
-            A sphere of work,<br />pulled into focus.
+            Architecting autonomous AI systems<br />and high-performance web platforms.
           </h1>
           <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
             <a
@@ -512,7 +528,7 @@ export default function App() {
                 textDecoration: "none",
               }}
             >
-              Explore <span aria-hidden>↗</span>
+              View selected work ↓
             </a>
             <span style={{ color: "rgba(255,255,255,0.42)", fontFamily: "system-ui, sans-serif", fontSize: 12, letterSpacing: "0.04em" }}>
               {isFallback ? "Craft that holds up close" : "Scroll to reveal the wall"}
@@ -536,9 +552,7 @@ export default function App() {
             zIndex: 2,
           }}
         >
-          <span>Drag to spin</span>
-          <span aria-hidden style={{ width: 22, height: 14, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9 }}>↔</span>
-          <span>· Click a card</span>
+          <span>Drag to explore the sphere</span>
         </div>
 
         {/* Zone HTML — only rendered meaningfully when not in fallback; hidden via opacity otherwise */}
@@ -566,7 +580,7 @@ export default function App() {
               whiteSpace: "nowrap",
             }}
           >
-            02 — The Practice
+            01 — THE PRACTICE
           </div>
           {/* H — headline */}
           <div
@@ -582,7 +596,7 @@ export default function App() {
               textWrap: "balance",
             }}
           >
-            Small studio, sharp edges.
+            Engineering at the edge of AI and automation.
           </div>
           {/* B — bio (one-liner, §5) */}
           <div
@@ -599,7 +613,7 @@ export default function App() {
               textOverflow: "ellipsis",
             }}
           >
-            Interfaces, WebGL, and design systems for teams that care about craft.
+            I build autonomous agents and scalable platforms that replace manual overhead with intelligent code.
           </div>
           {/* T — tag line */}
           <div
@@ -614,12 +628,12 @@ export default function App() {
               whiteSpace: "nowrap",
             }}
           >
-            Interfaces · WebGL · Design Systems · Tooling
+            AI AGENTS · REACT · FASTAPI · SYSTEMS
           </div>
           {/* C1 — email */}
           <div data-zone="C1" style={{ position: "absolute", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: "0 6px", boxSizing: "border-box" }}>
             <a
-              href="mailto:hello@example.com"
+              href="mailto:raedsiddiquie4@gmail.com"
               tabIndex={ctaLive ? 0 : -1}
               aria-hidden={!ctaLive}
               style={{
@@ -640,11 +654,10 @@ export default function App() {
               Email
             </a>
           </div>
-          {/* C2 — See the index */}
+          {/* C2 — Index */}
           <div data-zone="C2" style={{ position: "absolute", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: "0 6px", boxSizing: "border-box" }}>
             <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
+              href="#work"
               tabIndex={ctaLive ? 0 : -1}
               aria-hidden={!ctaLive}
               style={{
@@ -662,7 +675,7 @@ export default function App() {
                 whiteSpace: "nowrap", flexShrink: 0,
               }}
             >
-              See the index
+              Index
             </a>
           </div>
         </div>

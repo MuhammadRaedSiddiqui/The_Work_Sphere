@@ -51,7 +51,7 @@ export default function FallbackAbout() {
       <style>{`
         .fb-outer { max-width: 1100px; margin: 0 auto; }
         .fb-grid { display: grid; grid-template-columns: 1fr 1.15fr; gap: 36px; align-items: start; }
-        @media (max-width: 768px) {
+        @media (max-width: 760px) {
           .fb-grid { grid-template-columns: 1fr; }
         }
         .fb-photo {
@@ -66,11 +66,11 @@ export default function FallbackAbout() {
 
       <div className="fb-outer">
         <div className="fb-grid">
-          {/* Photo — Phase 7: real featured square, fallback to canvas */}
+          {/* Photo — single normal image (not mosaic), /img/about-featured.jpg */}
           <div className="fb-photo" aria-hidden="true">
             {photoOk ? (
               <img
-                src="/assets/photo/featured.jpg"
+                src="/img/about-featured.jpg"
                 alt=""
                 loading="lazy"
                 onError={() => setPhotoOk(false)}
@@ -90,7 +90,7 @@ export default function FallbackAbout() {
                 fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase",
               }}
             >
-              02 — The Practice
+              01 — THE PRACTICE
             </div>
             <h2
               style={{
@@ -102,7 +102,7 @@ export default function FallbackAbout() {
                 textWrap: "balance",
               }}
             >
-              Small studio, sharp edges.
+              Engineering at the edge of AI and automation.
             </h2>
             <p
               style={{
@@ -112,7 +112,7 @@ export default function FallbackAbout() {
                 fontSize: 15, lineHeight: 1.55, letterSpacing: "0.01em",
               }}
             >
-              Interfaces, WebGL, and design systems for teams that care about craft.
+              I build autonomous agents and scalable platforms that replace manual overhead with intelligent code.
             </p>
             <div
               style={{
@@ -122,11 +122,11 @@ export default function FallbackAbout() {
                 fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase",
               }}
             >
-              Interfaces · WebGL · Design Systems · Tooling
+              AI AGENTS · REACT · FASTAPI · SYSTEMS
             </div>
             <div style={{ marginTop: 22, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <a
-                href="mailto:hello@example.com"
+                href="mailto:raedsiddiquie4@gmail.com"
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                   height: 36, padding: "0 18px", borderRadius: 999,
@@ -140,8 +140,7 @@ export default function FallbackAbout() {
                 Email
               </a>
               <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
+                href="#work"
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                   height: 36, padding: "0 18px", borderRadius: 999,
@@ -152,7 +151,7 @@ export default function FallbackAbout() {
                   textDecoration: "none",
                 }}
               >
-                See the index
+                Index
               </a>
             </div>
           </div>

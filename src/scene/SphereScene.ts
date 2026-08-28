@@ -10,7 +10,7 @@ import {
   GRID_HEIGHT,
   gridPositions,
 } from "./layout";
-import { makeComingSoon, makeLQIP, getPhotoTexture, getCachedThumbnail, loadThumbnailTexture, markScrollIntent, hasScrollIntent, preloadThumbnails } from "./textures";
+import { getComingSoonTexture, getPhotoTexture, getCachedThumbnail, loadThumbnailTexture, markScrollIntent, hasScrollIntent, preloadThumbnails } from "./textures";
 import { projects } from "../data/projects";
 import type { Project } from "../types";
 
@@ -18,7 +18,8 @@ const IDLE_SPEED = 0.045;
 const MOMENTUM_DECAY = 2.6;
 const IDLE_RESUME_EPS = 0.01;
 const STROKE_OPACITY = 0.33;
-const STROKE_BOOST = 0.58;
+const STROKE_BOOST = 0.9;
+const STROKE_BOOST_END = 0.78;
 const LINE_OPACITY = 0.16;
 const OUTSIDE_LINE_OPACITY = 0.20;
 const ENTRANCE_DURATION = 0.9;
@@ -29,10 +30,18 @@ const INSIDE_CAM_Z = 0.01;
 const FOG_INSIDE_NEAR = SPHERE_RADIUS * 1.6;
 const FOG_INSIDE_FAR = SPHERE_RADIUS * 3.2;
 
-// Photo bezel inset: ~3.5% of short edge in world units — baked into UVs
-const PHOTO_BEZEL_WORLD = CARD_HEIGHT * 0.035;
-const PHOTO_U_INSET = PHOTO_BEZEL_WORLD / CARD_WIDTH;
-const PHOTO_V_INSET = PHOTO_BEZEL_WORLD / CARD_HEIGHT;
+// Photo mosaic — one shared texture with per-card UV sub-rects and 3.5% inset bezel (§4).
+// Seams are the bezel (UV inset), not spacing gaps; spacing → 0 at p=1.
+// Two equivalent implementations:
+//   (A) geometry UV remap (used here) — clone geometry and lerp UVs to inset sub-rect
+//   (B) material offset/repeat — keep geometry shared, clone texture per card:
+//       const INSET = 0.035;
+//       material.map = sharedPhotoTexture.clone();
+//       material.map.offset.set(localCol/2 + INSET, 1 - (localRow+1)/3 + INSET);
+//       material.map.repeat.set(1/2 - 2*INSET, 1/3 - 2*INSET);
+// Both produce identical bezel; (A) avoids per-material texture clone overhead.
+// Uniform INSET 0.035 in UV space (~3.5% of card edge) — not world-proportional.
+const PHOTO_INSET = 0.035;
 
 type Card = {
   slot: (typeof cardSlots)[number];
@@ -172,6 +181,10 @@ export class SphereScene {
     return SPHERE_RADIUS / (TOGGLE_TARGET_FRAC * halfTan);
   }
   private computeCoverDistance(): number {
+    // Axis-fit COVER (spec §10): distance = min(dHeightFit, dWidthFit)
+    // where dHeightFit = gridH/(2·tan(fov/2)), dWidthFit = gridW/(2·tan(fov/2)·aspect).
+    // This makes the grid COVER the viewport (one axis fills exactly, the other crops
+    // the unzoned outer ring). Do NOT use min(vw/GW, vh/GH) — that's contain/letterbox.
     const fovRad = (this.camera.fov * Math.PI) / 180;
     const halfTan = Math.tan(fovRad / 2);
     const aspect = this.camera.aspect || this.container.clientWidth / Math.max(this.container.clientHeight, 1);
@@ -247,17 +260,20 @@ export class SphereScene {
   private buildCards() {
     const baseGeometry = new THREE.PlaneGeometry(CARD_WIDTH, CARD_HEIGHT);
     const edgeGeometry = new THREE.EdgesGeometry(baseGeometry);
-    const soon = makeComingSoon();
+    const soon = getComingSoonTexture();
     const photoTex = getPhotoTexture();
 
     cardSlots.forEach((slot) => {
       const project = projects[slot.index];
       const isPhoto = PHOTO_INDICES.has(slot.index);
       let geometry: THREE.PlaneGeometry = baseGeometry;
-      let materialMap: THREE.Texture | null = null;
 
       if (isPhoto) {
-        // Clone geometry and bake UV sub-rect with inset bezel — computed once at build, not per-frame (§4, §16)
+        // Clone geometry and bake UV sub-rect with uniform 3.5% inset bezel — computed once at build, not per-frame (§4, §16)
+        // Equivalent to per-card material offset/repeat (see top-of-file comment for snippet):
+        //   const INSET = 0.035; material.map.offset.set(localCol/2+INSET, 1-(localRow+1)/3+INSET);
+        //   material.map.repeat.set(1/2-2*INSET, 1/3-2*INSET);
+        // Geometry UV path avoids extra texture clones while producing identical bezel seams.
         geometry = baseGeometry.clone() as THREE.PlaneGeometry;
         const uvAttr = geometry.getAttribute("uv") as THREE.BufferAttribute;
         const slotUV = photoSlotUV(slot.index)!;
@@ -267,10 +283,10 @@ export class SphereScene {
         const u1 = u0 + uSlice;
         const v1 = 1 - slotUV.rowInZone * vSlice;
         const v0 = v1 - vSlice;
-        const iu0 = u0 + PHOTO_U_INSET;
-        const iu1 = u1 - PHOTO_U_INSET;
-        const iv0 = v0 + PHOTO_V_INSET;
-        const iv1 = v1 - PHOTO_V_INSET;
+        const iu0 = u0 + PHOTO_INSET;
+        const iu1 = u1 - PHOTO_INSET;
+        const iv0 = v0 + PHOTO_INSET;
+        const iv1 = v1 - PHOTO_INSET;
         for (let i = 0; i < uvAttr.count; i++) {
           const u = uvAttr.getX(i);
           const v = uvAttr.getY(i);
@@ -281,16 +297,17 @@ export class SphereScene {
         uvAttr.needsUpdate = true;
       }
 
-      // Phase 7: idle map is always LQIP (or comingSoon) — real thumbnails load only on scroll intent
-      if (project) {
-        materialMap = makeLQIP(project.id);
-      } else {
-        materialMap = soon;
-      }
+      // Initial map is always coming-soon.jpg (progressive: render coming-soon first,
+      // swap to full texture on load complete). Thumbnails are exactly 3:2, matching
+      // card aspect, so plain UV full-face — no cover-crop/repeat math.
+      let materialMap: THREE.Texture | null = soon;
 
       const material = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         map: materialMap,
+        transparent: false, // critical — do not fade via opacity
+        depthWrite: true, // default; keep it
+        alphaTest: 0.5, // if texture has alpha (rounded corners), discard instead of blending
         polygonOffset: true,
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,
@@ -333,7 +350,33 @@ export class SphereScene {
     });
     // Keep photoTexture ready (warms the texture) — real featured 1600 loads in background
     void photoTex;
-    // Phase 7: do NOT eagerly preload thumbnails here — wait for scroll intent to avoid pop during flight
+    // Eagerly load thumbnails immediately (progressive: coming-soon first, swap when each loads).
+    // Swaps are gated to p<=0.02 so flight never pops, but idle p=0 shows real thumbs right away.
+    this.warmThumbnailsEagerly();
+  }
+
+  /**
+   * Progressive eager load: only the first hemisphere (≈12 cards) starts immediately
+   * with low concurrency so the initial sphere isn't blocked or network-flooded.
+   * The remaining 36 are not loaded until scroll intent fires, so the flight never
+   * pops. An idle fallback batches the rest after 2.5s if the user never scrolls,
+   * still throttled. All swaps still gated to p≤0.02 in updateCards.
+   */
+  private warmThumbnailsEagerly(): void {
+    const realProjects = projects.filter((p): p is Project => !!p);
+    const initial = realProjects.slice(0, 12);
+    const remaining = realProjects.slice(12);
+    // Low-concurrency initial window — shows real thumbs on the facing hemisphere quickly
+    void preloadThumbnails(initial, 3);
+    // Defer remaining until scroll intent or idle timeout
+    const idleTimer = setTimeout(() => {
+      if (this.disposed) return;
+      if (hasScrollIntent()) return;
+      // Still throttled; scroll intent will accelerate any untouched ones
+      void preloadThumbnails(remaining, 2);
+    }, 2500);
+    // Allow dispose to cancel
+    (this as unknown as { _thumbIdleTimer?: ReturnType<typeof setTimeout> })._thumbIdleTimer = idleTimer;
   }
 
   /**
@@ -597,9 +640,8 @@ export class SphereScene {
   };
 
   private updateCards(frameRot: THREE.Quaternion, flightT: number, scrubP: number, toggleT: number) {
-    // Beats §6 (v2)
+    // Beats §6 (v2): flight 0→0.62 · thumb fade 0.62→0.74 · stroke boost 0.74→0.78 hold→0.82 · reveal 0.82→0.94 · settled 0.94→1.0
     const arrivalT = THREE.MathUtils.clamp((scrubP - FLIGHT_END) / (ARRIVAL_END - FLIGHT_END), 0, 1);
-    const blueprintT = THREE.MathUtils.clamp((scrubP - ARRIVAL_END) / (BLUEPRINT_END - ARRIVAL_END), 0, 1);
     const revealT = THREE.MathUtils.clamp((scrubP - BLUEPRINT_END) / (REVEAL_END - BLUEPRINT_END), 0, 1);
 
     for (const card of this.cards) {
@@ -650,10 +692,9 @@ export class SphereScene {
       const mat = card.mesh.material as THREE.MeshBasicMaterial;
       const lineMat = card.outline.material as THREE.LineBasicMaterial;
 
-      // Phase 7 — safe thumbnail upgrade on scroll intent without flight pop.
-      // LQIP stays during flight (0<p≤0.62); real thumb swaps only when back at sphere (p≤0.02).
-      // This guarantees no LQIP→high-res pop is visible mid-flight on desktop.
-      if (hasScrollIntent() && scrubP <= 0.02) {
+      // Safe thumbnail upgrade — real thumb swaps only when back at sphere (p≤0.02)
+      // so flight never pops. Works for both eager idle loads and scroll-intent preloads.
+      if (scrubP <= 0.02) {
         const proj = projects[card.slot.index];
         if (proj) {
           const cached = getCachedThumbnail(proj.id);
@@ -671,13 +712,16 @@ export class SphereScene {
         }
       }
 
-      // Stroke: idle → boosted (0.74–0.82) → exactly 0 by 0.94
+      // Stroke: idle → boosted (0.74–0.78 ramp to 0.9, hold to 0.82) → exactly 0 by 0.94
       // All cards participate; verification: ease-down targets 0, not idle (§16)
       let targetStroke: number;
       if (scrubP <= ARRIVAL_END) {
         targetStroke = STROKE_OPACITY;
+      } else if (scrubP <= STROKE_BOOST_END) {
+        const boostT = THREE.MathUtils.clamp((scrubP - ARRIVAL_END) / (STROKE_BOOST_END - ARRIVAL_END), 0, 1);
+        targetStroke = THREE.MathUtils.lerp(STROKE_OPACITY, STROKE_BOOST, boostT);
       } else if (scrubP <= BLUEPRINT_END) {
-        targetStroke = THREE.MathUtils.lerp(STROKE_OPACITY, STROKE_BOOST, blueprintT);
+        targetStroke = STROKE_BOOST;
       } else if (scrubP <= REVEAL_END) {
         targetStroke = THREE.MathUtils.lerp(STROKE_BOOST, 0, revealT);
       } else {
@@ -846,6 +890,8 @@ export class SphereScene {
     this.disposed = true;
     cancelAnimationFrame(this.rafId);
     clearTimeout(this.resizeTimer);
+    const t = (this as unknown as { _thumbIdleTimer?: ReturnType<typeof setTimeout> })._thumbIdleTimer;
+    if (t) clearTimeout(t);
     window.removeEventListener("resize", this.onResize);
     const vv = (window as unknown as { visualViewport?: VisualViewport }).visualViewport;
     if (vv) {

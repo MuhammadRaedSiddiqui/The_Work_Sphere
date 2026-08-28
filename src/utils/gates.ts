@@ -32,13 +32,10 @@ export function isLowTierDevice(): boolean {
   //    This is the primary signal — other heuristics are secondary.
   if (vw < 768) return true;
 
-  // 2) Device memory (Chromium only). Strict <4 (i.e. ≤2-3) is a reliable
-  //    low-end signal; 4GB on its own is borderline for desktops and would
-  //    incorrectly gate many 4GB laptops that otherwise handle WebGL fine.
-  //    Keep 4 as fallback only when combined with other signals, but alone
-  //    require <4 to avoid false positives on 4-core/4GB laptops.
+  // 2) Device memory (Chromium only). Spec §15 / task: ≤2 GB → fallback.
+  //    deviceMemory values are discrete (0.25,0.5,1,2,4,8); ≤2 captures low-end.
   const dm = (navigator as unknown as { deviceMemory?: number }).deviceMemory;
-  if (typeof dm === "number" && dm > 0 && dm < 4) return true;
+  if (typeof dm === "number" && dm > 0 && dm <= 2) return true;
 
   // 3) Logical cores — ≤2 correlates with low-end Android / cheap laptops.
   //    ≤4 is too aggressive: many mainstream laptops (i5/Ryzen 5) report 4
@@ -74,6 +71,9 @@ export function passesZoneVisibilityGate(
   if (vw <= 0 || vh <= 0) return false;
 
   const aspect = vw / vh;
+  // Task literal: the inset zone map (grid native 2.0) tolerates ±1 row/col crop
+  // → safe band 1.5–3.0. Fail fast on aspect before the precise projection check.
+  if (aspect < 1.5 || aspect > 3.0) return false;
   const fovRad = (FOV_DEG * Math.PI) / 180;
   const halfTan = Math.tan(fovRad / 2);
   if (halfTan < 1e-6) return false;

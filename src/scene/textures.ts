@@ -3,19 +3,54 @@ import type { Project } from "../types";
 import { CARD_FILL_COLOR } from "../constants";
 
 // ---------------------------------------------------------------------------
-// Phase 7 — Asset pipeline
-// Real featured photo (square ≥1600²), real thumbnails/hero images, "coming soon"
-// texture, thumbnail preload on scroll intent, LQIP that never pops during flight.
-// hero spec appendix + transition §16 + hero §15.
+// Asset pipeline — spec requirements:
+// - Card thumbnails: /img/projects/{id}/thumb.jpg (3:2, ≥800w), hero same at hero.jpg
+// - About photo mosaic: /img/about-featured.jpg (square, ≥1600²) as ONE shared texture
+// - Fallback: /img/coming-soon.jpg (3:2) — never render black/broken
+// Progressive: render coming-soon.jpg first, swap to full texture on load complete.
+// Performance: do not load all 48 full-res at once — eager staggered load + preload remaining on first scroll intent.
 // ---------------------------------------------------------------------------
 
+// -- Fallback canvas for coming-soon (used while /img/coming-soon.jpg loads or on error)
+let comingSoonFallback: THREE.CanvasTexture | null = null;
+export function makeComingSoon(): THREE.CanvasTexture {
+  if (comingSoonFallback) return comingSoonFallback;
+  const c = document.createElement("canvas");
+  c.width = 600;
+  c.height = 400;
+  const ctx = c.getContext("2d")!;
+  const fill = `#${CARD_FILL_COLOR.toString(16).padStart(6, "0")}`;
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, 600, 400);
+  ctx.strokeStyle = "rgba(255,255,255,0.07)";
+  ctx.lineWidth = 1.2;
+  for (let x = -600; x < 600; x += 20) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + 400, 400);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(255,255,255,0.10)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, 599, 399);
+  ctx.fillStyle = "rgba(255,255,255,0.34)";
+  ctx.font = "600 18px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("coming soon", 300, 200);
+  comingSoonFallback = new THREE.CanvasTexture(c);
+  comingSoonFallback.colorSpace = THREE.SRGBColorSpace;
+  comingSoonFallback.minFilter = THREE.LinearFilter;
+  comingSoonFallback.magFilter = THREE.LinearFilter;
+  return comingSoonFallback;
+}
+
+// keep procedural thumbnail fallback for internal use (not primary)
 function hueFor(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
   return h;
 }
-
-// -- LQIP: 8×6 flat color — instant paint, no network
 export function makeLQIP(id: string): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 8;
@@ -29,9 +64,6 @@ export function makeLQIP(id: string): THREE.CanvasTexture {
   t.magFilter = THREE.LinearFilter;
   return t;
 }
-
-// -- Procedural fallback thumbnail (used when /assets/thumbnails/{id}.jpg 404s)
-// Phase 7 keeps this as the Contents fallback — still a valid render if real asset fails.
 export function makeThumbnailCanvas(p: Project): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 600;
@@ -64,53 +96,72 @@ export function makeThumbnailCanvas(p: Project): THREE.CanvasTexture {
   t.generateMipmaps = false;
   return t;
 }
-
-// Keep old name for compat — now delegates to canvas fallback
 export function makeThumbnail(p: Project): THREE.CanvasTexture {
   return makeThumbnailCanvas(p);
 }
 
-// -- "Coming soon" placeholder (§1) — subtle hatch over card fill
-let comingSoon: THREE.CanvasTexture | null = null;
-export function makeComingSoon(): THREE.CanvasTexture {
-  if (comingSoon) return comingSoon;
-  const c = document.createElement("canvas");
-  c.width = 600;
-  c.height = 400;
-  const ctx = c.getContext("2d")!;
-  const fill = `#${CARD_FILL_COLOR.toString(16).padStart(6, "0")}`;
-  ctx.fillStyle = fill;
-  ctx.fillRect(0, 0, 600, 400);
-  // sharper hatch for Phase 7 — still low-contrast
-  ctx.strokeStyle = "rgba(255,255,255,0.07)";
-  ctx.lineWidth = 1.2;
-  for (let x = -600; x < 600; x += 20) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x + 400, 400);
-    ctx.stroke();
-  }
-  // inner border hint
-  ctx.strokeStyle = "rgba(255,255,255,0.10)";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(0.5, 0.5, 599, 399);
-  ctx.fillStyle = "rgba(255,255,255,0.34)";
-  ctx.font = "600 18px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("coming soon", 300, 200);
-  comingSoon = new THREE.CanvasTexture(c);
-  comingSoon.colorSpace = THREE.SRGBColorSpace;
-  comingSoon.minFilter = THREE.LinearFilter;
-  comingSoon.magFilter = THREE.LinearFilter;
-  return comingSoon;
+// -- Shared coming-soon texture (real file /img/coming-soon.jpg, fallback to canvas)
+// Progressive pattern: render coming-soon.jpg first; thumb loads swap on complete.
+// We create a Texture that initially shows the canvas fallback instantly (no black flash)
+// and upgrades in-place (image + needsUpdate) when the real jpg arrives.
+let comingSoonTexture: THREE.Texture | null = null;
+let comingSoonPromise: Promise<THREE.Texture> | null = null;
+
+function getComingSoonFallbackTexture(): THREE.Texture {
+  if (!comingSoonFallback) makeComingSoon();
+  return comingSoonFallback!;
 }
 
-// -- Shared photo mosaic texture — one canvas sampled across 2×3 zone via UV inset
-// Phase 7: real featured photo (square ≥1600²) is the source. We keep a procedural
-// 1600² fallback and attempt to load /assets/photo/featured.jpg on top of it.
-let photoTexture: THREE.CanvasTexture | THREE.Texture | null = null;
+export function getComingSoonTexture(): THREE.Texture {
+  if (comingSoonTexture) return comingSoonTexture;
+  // Start with immediate canvas fallback so first frame never black
+  comingSoonTexture = getComingSoonFallbackTexture();
+  // Kick real load in background — update image in place when ready
+  void loadRealComingSoonTexture();
+  return comingSoonTexture;
+}
+
+function loadRealComingSoonTexture(): Promise<THREE.Texture> {
+  if (comingSoonPromise) return comingSoonPromise;
+  comingSoonPromise = new Promise((resolve) => {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      "/img/coming-soon.jpg",
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        // In-place upgrade: keep same object reference so existing materials see it
+        if (comingSoonTexture && comingSoonTexture !== tex) {
+          // Replace image and UV settings in-place per spec (update texture.image + needsUpdate)
+          (comingSoonTexture as THREE.Texture).image = tex.image;
+          comingSoonTexture.needsUpdate = true;
+          // Preserve colorSpace/filter already set
+          comingSoonTexture.colorSpace = THREE.SRGBColorSpace;
+          // Cache new for future callers that check identity — they still share the upgraded object
+          resolve(comingSoonTexture);
+        } else {
+          comingSoonTexture = tex;
+          resolve(tex);
+        }
+      },
+      undefined,
+      () => {
+        // 404 → keep fallback canvas, resolve with it (never black)
+        resolve(getComingSoonFallbackTexture());
+      }
+    );
+  });
+  return comingSoonPromise;
+}
+
+// -- Shared photo mosaic texture — one shared texture for 2×3 zone (§4)
+// Loaded from /img/about-featured.jpg (square). UV sub-rects with 3.5% inset bezel
+// are applied via geometry UV remap in SphereScene (computed once, not per-frame).
+let photoTexture: THREE.Texture | null = null;
 let photoRealLoaded = false;
+let photoPromise: Promise<THREE.Texture | null> | null = null;
 
 function makePhotoFallback1600(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
@@ -136,8 +187,7 @@ function makePhotoFallback1600(): THREE.CanvasTexture {
   ctx.fillText("featured · 1600² · photo mosaic 2×3", 800, 870);
   ctx.fillStyle = "rgba(255,255,255,0.14)";
   ctx.font = "500 12px system-ui, sans-serif";
-  ctx.fillText("real featured photo fallback — replace /assets/photo/featured.jpg", 800, 900);
-  // slice hints
+  ctx.fillText("real featured photo fallback — replace /img/about-featured.jpg", 800, 900);
   ctx.strokeStyle = "rgba(255,255,255,0.04)";
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(800, 0); ctx.lineTo(800, 1600); ctx.stroke();
@@ -153,42 +203,41 @@ function makePhotoFallback1600(): THREE.CanvasTexture {
 
 export function getPhotoTexture(): THREE.Texture {
   if (photoTexture) return photoTexture;
+  // Immediate fallback so wall never shows black; upgrade in background
   photoTexture = makePhotoFallback1600();
-  // Kick real load in background — swaps when done if not already replaced
   void loadRealPhotoTexture();
   return photoTexture;
 }
 
-// Try to load the real featured square. If it succeeds, replace the fallback
-// texture's image in place so existing materials pick it up without reassigning
-// during flight (avoid pop). Callers that already hold the fallback ref will see
-// the update after needsUpdate.
-let realPhotoPromise: Promise<THREE.Texture | null> | null = null;
 export function loadRealPhotoTexture(): Promise<THREE.Texture | null> {
-  if (realPhotoPromise) return realPhotoPromise;
-  realPhotoPromise = new Promise((resolve) => {
+  if (photoPromise) return photoPromise;
+  photoPromise = new Promise((resolve) => {
     const loader = new THREE.TextureLoader();
-    const tryLoad = (url: string, onFail: () => void) => {
-      loader.load(
-        url,
-        (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          tex.minFilter = THREE.LinearFilter;
-          tex.magFilter = THREE.LinearFilter;
-          tex.generateMipmaps = false;
+    loader.load(
+      "/img/about-featured.jpg",
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        if (photoTexture && photoTexture !== tex) {
+          // In-place upgrade: preserve object identity so photo cards already holding
+          // the fallback reference show the real image without per-card reassignment.
+          (photoTexture as THREE.Texture).image = tex.image;
+          photoTexture.needsUpdate = true;
+          photoRealLoaded = true;
+          resolve(photoTexture);
+        } else {
           photoTexture = tex;
           photoRealLoaded = true;
           resolve(tex);
-        },
-        undefined,
-        onFail
-      );
-    };
-    tryLoad("/assets/photo/featured.jpg", () => {
-      tryLoad("/assets/photo/featured.png", () => resolve(null));
-    });
+        }
+      },
+      undefined,
+      () => resolve(null) // keep fallback canvas on error
+    );
   });
-  return realPhotoPromise;
+  return photoPromise;
 }
 
 export function isPhotoRealLoaded(): boolean {
@@ -196,18 +245,16 @@ export function isPhotoRealLoaded(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Thumbnail asset pipeline — real thumbnails with LQIP + scroll-intent preload
-// - Initially every card shows its 8×6 LQIP (synchronous, no pop).
-// - Real 600×400 JPG at /assets/thumbnails/{id}.jpg loads only after scroll intent
-//   (first wheel/touch scroll or explicit trigger) — no LQIP pop-in during flight
-//   on desktop because swaps are gated to safe scrub windows (p≤0.02 or p≥0.82).
-// - Fail → procedural fallback canvas, not a broken texture.
+// Thumbnail pipeline — real thumbnails via /img/projects/{id}/thumb.jpg
+// - Initially every card shows coming-soon.jpg (via getComingSoonTexture)
+// - Real 3:2 JPGs start loading immediately (eager, concurrency-limited) and
+//   also on first scroll intent as backup — swaps are gated to safe scrub
+//   windows (p≤0.02) so flight never pops. On 404/error keep coming-soon (never black).
 // ---------------------------------------------------------------------------
 
 const thumbCache = new Map<string, THREE.Texture>();
 const thumbInflight = new Map<string, Promise<THREE.Texture>>();
 let scrollIntentFired = false;
-let thumbnailPreloadStarted = false;
 
 export function hasScrollIntent(): boolean {
   return scrollIntentFired;
@@ -218,8 +265,9 @@ export function markScrollIntent(): void {
 
 /**
  * Load one project's thumbnail as a THREE.Texture.
- * Tries /assets/thumbnails/{id}.jpg first (real asset), falls back to canvas.
- * Cached — second call is synchronous.
+ * Tries project.thumbnail (/img/projects/{id}/thumb.jpg); on error resolves
+ * to the coming-soon texture (never black).
+ * Cached — second call is synchronous via cache.
  */
 export function loadThumbnailTexture(p: Project): Promise<THREE.Texture> {
   const cached = thumbCache.get(p.id);
@@ -229,32 +277,26 @@ export function loadThumbnailTexture(p: Project): Promise<THREE.Texture> {
 
   const promise = new Promise<THREE.Texture>((resolve) => {
     const loader = new THREE.TextureLoader();
-    const url = p.thumbnail; // already "/assets/thumbnails/{id}.jpg"
-    const pngUrl = url.replace(/\.jpg$/i, ".png");
-    const onSuccess = (tex: THREE.Texture) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.minFilter = THREE.LinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      thumbCache.set(p.id, tex);
-      thumbInflight.delete(p.id);
-      resolve(tex);
-    };
-    const fallback = () => {
-      const fb = makeThumbnailCanvas(p);
-      thumbCache.set(p.id, fb);
-      thumbInflight.delete(p.id);
-      resolve(fb);
-    };
+    const url = p.thumbnail; // "/img/projects/{id}/thumb.jpg" — do NOT change paths in data
     loader.load(
       url,
-      onSuccess,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        // Thumbnails are exactly 3:2, matching card aspect — plain UV full-face, no cover math
+        tex.generateMipmaps = false;
+        thumbCache.set(p.id, tex);
+        thumbInflight.delete(p.id);
+        resolve(tex);
+      },
       undefined,
       () => {
-        // jpg 404 → try png (real mime) before procedural fallback
-        if (pngUrl !== url) {
-          loader.load(pngUrl, onSuccess, undefined, fallback);
-        } else fallback();
+        // 404/error → keep coming-soon texture (never black/broken)
+        const fallback = getComingSoonTexture();
+        thumbCache.set(p.id, fallback);
+        thumbInflight.delete(p.id);
+        resolve(fallback);
       }
     );
   });
@@ -263,13 +305,23 @@ export function loadThumbnailTexture(p: Project): Promise<THREE.Texture> {
 }
 
 /**
- * Preloads all project thumbnails. Called on scroll intent — not at build.
- * Concurrency limited to avoid flooding the loader and janking the scrub.
+ * Preloads project thumbnails with concurrency throttling.
+ * Deduped via thumbCache/thumbInflight — multiple calls with overlapping
+ * subsets are safe (already-loaded/in-flight entries are skipped).
+ * Used progressively: initial hemisphere eagerly, remaining on scroll intent.
  */
 export async function preloadThumbnails(projects: Project[], concurrency = 4): Promise<void> {
-  if (thumbnailPreloadStarted) return;
-  thumbnailPreloadStarted = true;
-  const queue = [...projects];
+  // Filter to those not already cached or in-flight so subsequent calls still make progress
+  const pending = projects.filter((p) => !thumbCache.has(p.id) && !thumbInflight.has(p.id));
+  if (pending.length === 0) {
+    // Even if all pending are in-flight, wait for them rather than returning immediately
+    const inflightPending = projects
+      .map((p) => thumbInflight.get(p.id))
+      .filter(Boolean) as Promise<THREE.Texture>[];
+    if (inflightPending.length) await Promise.allSettled(inflightPending);
+    return;
+  }
+  const queue = [...pending];
   const workers: Promise<void>[] = [];
   for (let w = 0; w < Math.min(concurrency, queue.length); w++) {
     workers.push(
@@ -279,7 +331,7 @@ export async function preloadThumbnails(projects: Project[], concurrency = 4): P
           try {
             await loadThumbnailTexture(p);
           } catch {
-            // ignore — fallback already handled
+            // fallback already handled
           }
         }
       })()
@@ -288,20 +340,17 @@ export async function preloadThumbnails(projects: Project[], concurrency = 4): P
   await Promise.all(workers);
 }
 
-/**
- * Whether a realised texture is available for this id (real or fallback).
- * Used by SphereScene to decide if a swap is safe without re-triggering load.
- */
 export function getCachedThumbnail(id: string): THREE.Texture | undefined {
   return thumbCache.get(id);
 }
 
-/**
- * Reset helper for tests / HMR.
- */
 export function __resetThumbnailPipeline(): void {
   thumbCache.clear();
   thumbInflight.clear();
   scrollIntentFired = false;
-  thumbnailPreloadStarted = false;
+  comingSoonTexture = null;
+  comingSoonPromise = null;
+  photoTexture = null;
+  photoRealLoaded = false;
+  photoPromise = null;
 }

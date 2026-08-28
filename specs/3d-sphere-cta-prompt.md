@@ -191,7 +191,7 @@ Scroll is context-dependent on whether a project is currently expanded:
 
 ## 13. Content Model
 
-Each card maps to a project record:
+Each card maps to a project record (stable index 0–47). All 48 slots are now filled — no "coming soon" placeholders remain in production; the placeholder texture (§1) is retained only for degraded/low-end fallback or future empty slots.
 
 ```ts
 type Project = {
@@ -213,7 +213,9 @@ type Project = {
 };
 ```
 
-Cards without an assigned project render the "coming soon" placeholder texture described in §1.
+Slots 0–6 hold the original shipped/in-progress flagships; slots 7–47 hold the 41 additional projects listed in Appendix B. Source of truth lives in `src/data/projects.ts` — the spec roster below is authoritative for card identity and ordering.
+
+Cards without an assigned project (should none remain in prod) would render the "coming soon" placeholder texture described in §1.
 
 ## 14. Accessibility
 
@@ -277,6 +279,65 @@ Found by building against an earlier version of this spec — logged here since 
 24. Drag input needs its sign flipped in outside mode (`dx` / `dy` negated before the existing rotation math) to compensate for the inside/outside viewing mirror-flip — the earlier claim that outside mode reuses drag "unchanged" was incomplete (§5, §8).
 25. Card fill and edge-stroke opacity corrected from `#1C1C1E` / ~10–15% to tested values of `#33333A` / ~30–35% — the original figures rendered as effectively solid black in an actual build; connector line opacity (§3) scaled proportionately (Theme section, §1, §3).
 26. Momentum on drag release must apply synchronously with zero delay, distinct from the separately-timed (decay-condition-based, not fixed-timeout) idle-rotation resume — these are two different trigger points that are easy to conflate in implementation (§7, §8).
+
+## Appendix B — Full 48-Card Roster (slots 0–47)
+
+Stable index → Project ID. Order matches `src/data/projects.ts`. Grid position is row-major (`row = floor(i/8)`, `col = i%8`); sphere ring follows the `[4, 8, 12, 12, 8, 4]` table — neither affects content, but both are shown for reference.
+
+| Slot | Project ID | Title | Year | Status | Ring |
+|---:|---|---|---|:---:|:---|
+| 0 | `personal-ai-employee` | Personal AI Employee | 2026 | shipped | 0 (4) |
+| 1 | `crm-digital-fte` | CRM Digital FTE | 2026 | shipped | 0 |
+| 2 | `agent-forge` | Agent Forge | 2026 | shipped | 0 |
+| 3 | `finance-tracker` | Finance Tracker | 2026 | shipped | 0 |
+| 4 | `devdocs-ai` | DevDocs AI | 2026 | in-progress | 1 (8) |
+| 5 | `estate-ease` | Estate Ease | 2026 | in-progress | 1 |
+| 6 | `physical-ai-textbook` | Physical AI Textbook | 2025 | shipped | 1 |
+| 7 | `prompt-orchestrator` | Prompt Orchestrator | 2025 | shipped | 1 |
+| 8 | `vision-index` | Vision Index | 2025 | shipped | 1 |
+| 9 | `voice-scribe` | Voice Scribe | 2024 | shipped | 1 |
+| 10 | `rag-pipeline-kit` | RAG Pipeline Kit | 2025 | in-progress | 1 |
+| 11 | `agent-memory` | Agent Memory Store | 2026 | in-progress | 1 |
+| 12 | `synth-data-factory` | Synth Data Factory | 2024 | shipped | 2 (12) |
+| 13 | `eval-harness` | Eval Harness | 2025 | shipped | 2 |
+| 14 | `deploy-pilot` | Deploy Pilot | 2024 | shipped | 2 |
+| 15 | `log-lens` | Log Lens | 2023 | shipped | 2 |
+| 16 | `infra-graph` | Infra Graph | 2024 | in-progress | 2 |
+| 17 | `canary-watch` | Canary Watch | 2025 | planned | 2 |
+| 18 | `vault-console` | Vault Console | 2023 | shipped | 2 |
+| 19 | `invoice-flow` | Invoice Flow | 2024 | shipped | 2 |
+| 20 | `meeting-scribe` | Meeting Scribe | 2025 | in-progress | 2 |
+| 21 | `form-forge` | Form Forge | 2023 | shipped | 2 |
+| 22 | `waitlist-kit` | Waitlist Kit | 2024 | shipped | 2 |
+| 23 | `changelog-cms` | Changelog CMS | 2024 | shipped | 2 |
+| 24 | `slot-engine` | Slot Engine | 2023 | shipped | 3 (12) |
+| 25 | `habit-loop` | Habit Loop | 2024 | shipped | 3 |
+| 26 | `pantry-scan` | Pantry Scan | 2025 | in-progress | 3 |
+| 27 | `transit-pulse` | Transit Pulse | 2023 | shipped | 3 |
+| 28 | `metric-mirror` | Metric Mirror | 2024 | shipped | 3 |
+| 29 | `funnel-scope` | Funnel Scope | 2025 | planned | 3 |
+| 30 | `query-canvas` | Query Canvas | 2024 | in-progress | 3 |
+| 31 | `git-pulse` | Git Pulse | 2023 | shipped | 3 |
+| 32 | `env-sync` | Env Sync | 2024 | shipped | 3 |
+| 33 | `scaffold-cli` | Scaffold CLI | 2025 | shipped | 3 |
+| 34 | `mock-mesh` | Mock Mesh | 2023 | shipped | 3 |
+| 35 | `rate-gate` | Rate Gate | 2024 | shipped | 3 |
+| 36 | `webhook-relay` | Webhook Relay | 2025 | in-progress | 4 (8) |
+| 37 | `hot-cache` | Hot Cache | 2023 | shipped | 4 |
+| 38 | `audit-trail` | Audit Trail | 2024 | shipped | 4 |
+| 39 | `token-forge` | Token Forge | 2023 | shipped | 4 |
+| 40 | `stream-ui` | Stream UI | 2025 | in-progress | 4 |
+| 41 | `veritas` | Veritas | 2024 | shipped | 4 |
+| 42 | `chart-kit` | Chart Kit | 2023 | shipped | 4 |
+| 43 | `snippet-vault` | Snippet Vault | 2024 | shipped | 4 |
+| 44 | `doc-search` | Doc Search | 2025 | planned | 5 (4) |
+| 45 | `pixel-sort` | Pixel Sort | 2023 | shipped | 5 |
+| 46 | `sound-map` | Sound Map | 2024 | planned | 5 |
+| 47 | `terminal-studio` | Terminal Studio | 2025 | planned | 5 |
+
+> Note: With 48 unique projects the roster fully occupies the grid; no null slots remain. The transition spec's decoupled index mapping (§8) still applies — e.g. `prompt-orchestrator` at slot 7 lands at grid `(0,7)` but sphere ring 1, with no coupling between the two.
+
+Card detail contract (mirrors §13 `Project`): every entry carries `thumbnail` + `heroImage` at `/img/projects/<id>/thumb.jpg` + `hero.jpg`, plus `summary`, `role: "Solo — design + engineering"`, `techStack`, `content` (Overview/Approach/Outcome), `gallery: []`, `links.repo`.
 
 ## Related documents
 

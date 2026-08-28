@@ -32,12 +32,12 @@ The cards are the section, not decoration behind it. The full-bleed claim holds 
  .  .  .  .  .  .  .  .
 ```
 
-- **E — eyebrow** ("02 — THE PRACTICE"): 1×3, row 1, cols 3–5.
+- **E — eyebrow** ("01 — THE PRACTICE"): 1×3, row 1, cols 3–5.
 - **P — photo mosaic:** 2 cols × 3 rows, rows 1–3, cols 1–2 → slice grid 2×3 (6 cards).
-- **H — headline** ("Small studio, sharp edges."): 1×4, row 2, cols 3–6 — one wide row, large type.
-- **B — bio** ("Interfaces, WebGL, and design systems for teams that care about craft."): 1×4, row 3, cols 3–6 — one wide row directly under the headline.
-- **T — tag line** ("INTERFACES · WEBGL · DESIGN SYSTEMS · TOOLING"): 1×2, row 4, cols 3–4.
-- **C1 / C2 — buttons** (email / "See the index"): one cell each, row 4, cols 5–6; HTML buttons sized to their own footprint within the projected cell rect.
+- **H — headline** ("Engineering at the edge of AI and automation."): 1×4, row 2, cols 3–6 — one wide row, large type.
+- **B — bio** ("I build autonomous agents and scalable platforms that replace manual overhead with intelligent code."): 1×4, row 3, cols 3–6 — one wide row directly under the headline.
+- **T — tag line** ("AI AGENTS · REACT · FASTAPI · SYSTEMS"): 1×2, row 4, cols 3–4.
+- **C1 / C2 — buttons** (email / "Index"): one cell each, row 4, cols 5–6; HTML buttons sized to their own footprint within the projected cell rect.
 
 Copy consequence, stated plainly: text zones are single wide rows, and the bio is a one-liner. The video wall is a visual medium and carries a punchy line, not a paragraph; longer copy belongs in the fallback or an expanded view, not here.
 
@@ -152,6 +152,7 @@ All keyed off the same progress value — no separate scroll listener.
 - Interaction routing: drag/click/tab locked past 0.02; buttons live from 0.82 (§14).
 - Pin end unpins and scrolls away; render pauses off-screen (§15).
 - Fallback skips the pin entirely and reuses the same content in conventional layout (§15).
+- **Card roster:** all 48 slots filled (hero spec Appendix B) — no null/placeholder cards in production; the "coming soon" texture is retained only for degraded fallback. Flight therefore carries real thumbnails on every card until the post-arrival fade (§6).
 
 ### Appendix A — Decision Rationale & Build-Test Corrections
 Archaeology preserved from v1; the normative body above reads as if it were always true.

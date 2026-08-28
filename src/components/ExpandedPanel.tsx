@@ -23,6 +23,18 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
   const [heroImgError, setHeroImgError] = useState(false);
   useEffect(() => setHeroImgError(false), [project.id, project.heroImage]);
 
+  // Prefetch adjacent heroes on demand (§15: hero.jpg only on panel open, optionally adjacent §11)
+  useEffect(() => {
+    const prefetch = (id: string) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = `/img/projects/${id}/hero.jpg`;
+    };
+    const idx = allProjects.findIndex((p) => p.id === project.id);
+    if (idx > 0) prefetch(allProjects[idx - 1].id);
+    if (idx >= 0 && idx < allProjects.length - 1) prefetch(allProjects[idx + 1].id);
+  }, [project.id, allProjects]);
+
   // Entrance: re-center + blur beat then zoom to fullscreen with p-8 (§9)
   useEffect(() => {
     const overlay = overlayRef.current;
@@ -305,7 +317,7 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
             zIndex: 1,
           }}
         >
-          <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.45)" }}>
+          <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.45)" }}>
             {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
           </span>
           <button
@@ -318,7 +330,7 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
               color: "rgba(255,255,255,0.85)",
               borderRadius: 999,
               padding: "6px 12px",
-              fontSize: 12,
+              fontSize: 14,
               letterSpacing: "0.04em",
               cursor: "pointer",
             }}
@@ -339,28 +351,29 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
           }}
           className="expand-scroll"
         >
-          {/* Hero image — Phase 7: real heroImage with procedural fallback */}
-          <div style={{ width: "100%", aspectRatio: "16 / 9", background: "#0A0A0A", overflow: "hidden", position: "relative" }}>
+          {/* Hero image — native aspect banner: hero.jpg is ~1.83:1 uncropped */}
+          <div style={{ width: "100%", background: "#0A0A0A", overflow: "hidden" }}>
             {!heroImgError ? (
               <img
                 src={project.heroImage}
                 alt={project.title}
                 loading="eager"
+                decoding="async"
                 onError={() => setHeroImgError(true)}
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                style={{ width: "100%", height: "auto", display: "block" }}
               />
             ) : (
               <div
                 style={{
                   width: "100%",
-                  height: "100%",
+                  aspectRatio: "1.83 / 1",
                   background: `linear-gradient(135deg, hsl(${hueFor(project.id)},30%,18%) 0%, hsl(${(hueFor(project.id)+40)%360},22%,10%) 100%)`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "rgba(255,255,255,0.18)",
                   fontFamily: "system-ui, sans-serif",
-                  fontSize: 48,
+                  fontSize: 50,
                   fontWeight: 700,
                   letterSpacing: "-0.02em",
                 }}
@@ -372,10 +385,10 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
 
           <div style={{ padding: isMobile() ? "22px 18px 0" : "28px 28px 0" }}>
             {/* Title + meta row §10.3 */}
-            <h2 style={{ margin: 0, fontFamily: "system-ui, sans-serif", fontSize: isMobile() ? 26 : 30, fontWeight: 700, letterSpacing: "-0.02em", color: "#F5F5F7", lineHeight: 1.1 }}>
+            <h2 style={{ margin: 0, fontFamily: "system-ui, sans-serif", fontSize: isMobile() ? 28 : 32, fontWeight: 700, letterSpacing: "-0.02em", color: "#F5F5F7", lineHeight: 1.1 }}>
               {project.title}
             </h2>
-            <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: "8px 14px", alignItems: "center", fontFamily: "system-ui, sans-serif", fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+            <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: "8px 14px", alignItems: "center", fontFamily: "system-ui, sans-serif", fontSize: 14, color: "rgba(255,255,255,0.5)" }}>
               {project.year && <span>{project.year}</span>}
               {project.role && <span>· {project.role}</span>}
               <span style={{ textTransform: "uppercase", letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.62)" }}>
@@ -394,29 +407,45 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
 
             {/* Summary §10.4 */}
             {project.summary && (
-              <p style={{ marginTop: 14, marginBottom: 0, fontFamily: "system-ui, sans-serif", fontSize: 14, lineHeight: 1.6, color: "rgba(255,255,255,0.72)" }}>
+              <p style={{ marginTop: 14, marginBottom: 0, fontFamily: "system-ui, sans-serif", fontSize: 16, lineHeight: 1.6, color: "rgba(255,255,255,0.72)" }}>
                 {project.summary}
               </p>
             )}
 
             {/* Case-study body §10.5 */}
             {project.content && (
-              <div style={{ marginTop: 20, fontFamily: "system-ui, sans-serif", fontSize: 14, lineHeight: 1.75, color: "rgba(255,255,255,0.78)" }}>
-                {project.content.split("\n").map((para, i) => (
-                  <p key={i} style={{ margin: i === 0 ? 0 : "14px 0 0" }}>
-                    {para}
-                  </p>
-                ))}
+              <div style={{ marginTop: 20, fontFamily: "system-ui, sans-serif", fontSize: 16, lineHeight: 1.75, color: "rgba(255,255,255,0.78)" }}>
+                {project.content.split("\n").map((raw, i) => {
+                  const para = raw.trim();
+                  if (!para) return null;
+                  if (para.startsWith("## ")) {
+                    return (
+                      <h3 key={i} style={{ margin: i === 0 ? "0 0 8px" : "20px 0 8px", fontSize: 15, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.92)" }}>
+                        {para.replace(/^##\s*/, "")}
+                      </h3>
+                    );
+                  }
+                  return (
+                    <p key={i} style={{ margin: i === 0 ? 0 : "0 0 14px" }}>
+                      {para}
+                    </p>
+                  );
+                })}
               </div>
             )}
 
-            {/* Gallery §10.6 */}
+            {/* Gallery §10.6 — stacked full-width images at natural aspect, lazy */}
             {project.gallery && project.gallery.length > 0 && (
               <div style={{ marginTop: 24, display: "grid", gap: 12 }}>
                 {project.gallery.map((src, i) => (
-                  <div key={i} style={{ width: "100%", aspectRatio: "16/10", background: "#0A0A0A", borderRadius: 10, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  </div>
+                  <img
+                    key={i}
+                    src={src}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    style={{ width: "100%", height: "auto", display: "block", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: "#0A0A0A" }}
+                  />
                 ))}
               </div>
             )}
@@ -457,18 +486,18 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
               opacity: hasNext ? 1 : 0.55,
             }}
           >
-            <div style={{ width: 56, height: 36, borderRadius: 8, background: hasNext ? `hsl(${hueFor(nextProject.id)},28%,16%)` : "rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>
+            <div style={{ width: 56, height: 36, borderRadius: 8, background: hasNext ? `hsl(${hueFor(nextProject.id)},28%,16%)` : "rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>
               {hasNext ? nextProject.title.slice(0, 2).toUpperCase() : "—"}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "system-ui, sans-serif", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>
+              <div style={{ fontFamily: "system-ui, sans-serif", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>
                 {hasNext ? "Next project" : "End of projects"}
               </div>
-              <div style={{ fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.82)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontFamily: "system-ui, sans-serif", fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.82)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {hasNext ? nextProject.title : "You’ve reached the end — scroll up or close"}
               </div>
             </div>
-            {hasNext && <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>→</span>}
+            {hasNext && <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 16 }}>→</span>}
           </div>
         </div>
       </div>
@@ -498,6 +527,6 @@ const linkStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.04)",
   color: "rgba(255,255,255,0.82)",
   fontFamily: "system-ui, sans-serif",
-  fontSize: 13,
+  fontSize: 15,
   textDecoration: "none",
 };

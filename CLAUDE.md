@@ -49,8 +49,9 @@ Read the relevant spec section before each task. **The specs reflect FINAL (v2) 
  .  .  .  .  .  .  .  .
 ```
 - P = photo mosaic (2×3, rows 1–3 cols 1–2) · E = eyebrow · H = headline · B = bio · T = tagline · C1/C2 = buttons.
-- **Bio is a one-liner:** "Interfaces, WebGL, and design systems for teams that care about craft."
+- **Bio is a one-liner** (currently "I build autonomous agents and scalable platforms that replace manual overhead with intelligent code.") — copy is tunable, the one-line row constraint is not.
 - Only the photo zone ever shows imagery once settled. Text-zone and unzoned cards are solid black, permanently. Text is real HTML positioned to the zone's projected bounding box, never rasterized into textures.
+- Production copy for hero overlay and wall zones is centralized in `src/constants.ts:heroCopy` / `aboutZones` and consumed by both the scrub wall and `FallbackAbout`; roster identity/order is authoritative in `src/data/projects.ts` + hero spec Appendix B.
 
 **Photo mosaic**
 - One shared texture; per-card UV sub-rects with ~3–4% inset bezel. Seams are the bezel, not spacing gaps. Computed once at build/load, not per-frame.
