@@ -245,6 +245,9 @@ export default function App() {
     }
 
     // Zone HTML positioning: project each zone's rect every frame so overlay stays locked to wall
+    // Editorial (§5): P is the right-column portrait (desaturated, 2×4), H dominates left spanning rows 2–3.
+    // T / C1 / C2 are intentionally UNMAPPED on the wall (spec §5 open decisions) — they
+    // have no projected rects here; surfacing that as open rather than guessing placement.
     // In fallback this loop still runs but exits early (p<0.74) — negligible cost; pause via opacity anyway.
     const updateZones = () => {
       rafZoneRef.current = requestAnimationFrame(updateZones);
@@ -258,7 +261,7 @@ export default function App() {
       layer.style.opacity = String(layerOpacity);
       layer.style.pointerEvents = p >= 0.82 ? "auto" : "none";
       if (p < 0.74 || isFallback) return;
-      const keys: (keyof typeof ZONES)[] = ["E", "H", "B", "T", "C1", "C2"];
+      const keys: (keyof typeof ZONES)[] = ["E", "H", "B"];
       for (const k of keys) {
         const el = layer.querySelector(`[data-zone="${k}"]`) as HTMLElement | null;
         if (!el) continue;
@@ -271,18 +274,29 @@ export default function App() {
         el.style.maxWidth = `${rect.width}px`;
         el.style.maxHeight = `${rect.height}px`;
         // Hard-constrain both axes + line-height from projected row height (§16)
-        // to avoid seam strikethrough and overflow.
-        if (k !== "C1" && k !== "C2") {
+        // Editorial: H spans 2 rows, so rowH is half its height; B is 1 row.
+        // Narrowly-scoped bleed exception (option b) NOT used — this build uses option (a)
+        // so no overflow:visible; if bleed were chosen, add it only to H with capped δ.
+        if (k === "H") {
+          // Headline dominates — 2-row zone, lineHeight from half-height (per row) to avoid seam strikethrough
+          const rowH = rect.height / 2;
+          el.style.lineHeight = `${Math.max(18, rowH * 0.95)}px`;
+          // Re-run §16 collision check at gate edges v≈1.5 / 3.0: with strict contain, H (rows2–3 cols1–4)
+          // and B (row4) and P (cols5–6) remain inside outer ring buffer (1 row/col), verified by projection.
+        } else if (k !== "B") {
+          const rowH = rect.height;
+          el.style.lineHeight = `${Math.max(14, rowH * 0.62)}px`;
+        } else {
           const rowH = rect.height;
           el.style.lineHeight = `${Math.max(14, rowH * 0.62)}px`;
         }
         // Bio legibility across safe band 1.5–3.0: scale font-size with zone width
-        // so the one-liner stays within the 4-col zone without overflow.
+        // so the one-liner stays within the 4-col zone without overflow (§16).
         if (k === "B") {
           // Zone B is 4 cols wide; at safe-band edges its projected width varies ~1.6×
           // Scale 11–15px clamp based on width so desktop narrow (1.5) doesn't clip and ultrawide doesn't look loose.
           const w = rect.width;
-          const scaled = Math.max(11, Math.min(15, w * 0.038));
+          const scaled = Math.max(11, Math.min(14, w * 0.032));
           el.style.fontSize = `${scaled}px`;
           el.style.whiteSpace = "nowrap";
           el.style.overflow = "hidden";
@@ -290,8 +304,10 @@ export default function App() {
         }
         if (k === "H") {
           const w = rect.width;
-          // Headline scales with zone but stays balanced; 4-col width large enough for clamp
-          const scaled = Math.max(18, Math.min(28, w * 0.065));
+          // Editorial headline dominates vs bio/tags (§5): ~32px/500 at mockup scale.
+          // 2-row, 4-col zone is ~60% text column; scale larger than before (18–28 → 28–44)
+          // but keep hard-constrained: clamped so it never bleeds into P (col5) or B (row4) at v≈1.5/3.0.
+          const scaled = Math.max(26, Math.min(42, w * 0.085));
           el.style.fontSize = `${scaled}px`;
         }
       }
@@ -367,7 +383,6 @@ export default function App() {
   const scrubLocked = isFallback;
   // Toggle hidden past p=0.10 in wall mode; always visible in fallback hero (scrubLocked) unless a panel is open.
   const effectiveToggleHidden = expandedIdx !== null || (!scrubLocked && scrubP > 0.10);
-  const ctaLive = !isFallback && scrubP >= 0.82 && expandedIdx === null;
 
   const handleToggle = () => {
     const next: "inside" | "outside" = viewMode === "inside" ? "outside" : "inside";
@@ -555,7 +570,7 @@ export default function App() {
           <span>Drag to explore the sphere</span>
         </div>
 
-        {/* Zone HTML — only rendered meaningfully when not in fallback; hidden via opacity otherwise */}
+        {/* Zone HTML — editorial wall: E/H/B only; T/C1/C2 intentionally unmapped (§5 open) */}
         <div
           ref={zoneLayerRef}
           aria-hidden={isFallback || scrubP < 0.82}
@@ -582,7 +597,7 @@ export default function App() {
           >
             01 — THE PRACTICE
           </div>
-          {/* H — headline */}
+          {/* H — headline (editorial: dominates frame, final word trailing-off) */}
           <div
             data-zone="H"
             style={{
@@ -591,23 +606,27 @@ export default function App() {
               overflow: "hidden",
               color: "rgba(255,255,255,0.96)",
               fontFamily: "system-ui, sans-serif",
-              fontSize: "clamp(18px, 2.4vw, 28px)",
-              fontWeight: 800, lineHeight: 1.08, letterSpacing: "-0.03em",
+              // Font size driven by rAF scaled to projected width (§5 ~32px/500 mockup); keep hard-constrained
+              fontSize: "clamp(26px, 3.2vw, 42px)",
+              fontWeight: 560, lineHeight: 1.02, letterSpacing: "-0.04em",
               textWrap: "balance",
             }}
           >
-            Engineering at the edge of AI and automation.
+            <span>
+              Engineering at the edge of AI and{" "}
+              <span style={{ color: "rgba(255,255,255,0.28)", fontWeight: 500 }}>automation.</span>
+            </span>
           </div>
-          {/* B — bio (one-liner, §5) */}
+          {/* B — bio (one-liner, secondary/small weight §5) */}
           <div
             data-zone="B"
             style={{
               position: "absolute",
               display: "flex", alignItems: "center",
               overflow: "hidden",
-              color: "rgba(255,255,255,0.72)",
+              color: "rgba(255,255,255,0.58)",
               fontFamily: "system-ui, sans-serif",
-              fontSize: "clamp(12px, 1.2vw, 15px)",
+              fontSize: "clamp(11px, 1.15vw, 14px)",
               fontWeight: 400, lineHeight: 1.35, letterSpacing: "0.01em",
               whiteSpace: "nowrap",
               textOverflow: "ellipsis",
@@ -615,69 +634,10 @@ export default function App() {
           >
             I build autonomous agents and scalable platforms that replace manual overhead with intelligent code.
           </div>
-          {/* T — tag line */}
-          <div
-            data-zone="T"
-            style={{
-              position: "absolute",
-              display: "flex", alignItems: "center",
-              overflow: "hidden",
-              color: "rgba(255,255,255,0.38)",
-              fontFamily: "system-ui, sans-serif",
-              fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase",
-              whiteSpace: "nowrap",
-            }}
-          >
-            AI AGENTS · REACT · FASTAPI · SYSTEMS
-          </div>
-          {/* C1 — email */}
-          <div data-zone="C1" style={{ position: "absolute", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: "0 6px", boxSizing: "border-box" }}>
-            <a
-              href="mailto:raedsiddiquie4@gmail.com"
-              tabIndex={ctaLive ? 0 : -1}
-              aria-hidden={!ctaLive}
-              style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                height: 34, padding: "0 18px",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: ctaLive ? "rgba(255,255,255,0.94)" : "rgba(255,255,255,0.5)",
-                fontFamily: "system-ui, sans-serif", fontSize: 12, fontWeight: 600, letterSpacing: "0.02em",
-                textDecoration: "none",
-                opacity: ctaLive ? 1 : 0.5,
-                pointerEvents: ctaLive ? "auto" : "none",
-                transition: "opacity 200ms ease, border-color 200ms ease",
-                whiteSpace: "nowrap", flexShrink: 0,
-              }}
-            >
-              Email
-            </a>
-          </div>
-          {/* C2 — Index */}
-          <div data-zone="C2" style={{ position: "absolute", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: "0 6px", boxSizing: "border-box" }}>
-            <a
-              href="#work"
-              tabIndex={ctaLive ? 0 : -1}
-              aria-hidden={!ctaLive}
-              style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                height: 34, padding: "0 18px",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: ctaLive ? "rgba(255,255,255,0.94)" : "rgba(255,255,255,0.06)",
-                color: ctaLive ? "#0A0A0A" : "rgba(255,255,255,0.5)",
-                fontFamily: "system-ui, sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: "0.02em",
-                textDecoration: "none",
-                opacity: ctaLive ? 1 : 0.5,
-                pointerEvents: ctaLive ? "auto" : "none",
-                transition: "opacity 200ms ease, background 200ms ease",
-                whiteSpace: "nowrap", flexShrink: 0,
-              }}
-            >
-              Index
-            </a>
-          </div>
+          {/* T / C1 / C2 — intentionally NOT rendered on the wall; spec §5 leaves them unresolved:
+              - C1/C2: working assumption quiet text beneath bio vs folding into header nav (OPEN)
+              - T: status undecided, early exploration dropped it (OPEN)
+              Surface back rather than guessing placement — no wall cells assigned. */}
         </div>
       </section>
 

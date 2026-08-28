@@ -156,43 +156,50 @@ function loadRealComingSoonTexture(): Promise<THREE.Texture> {
   return comingSoonPromise;
 }
 
-// -- Shared photo mosaic texture — one shared texture for 2×3 zone (§4)
-// Loaded from /img/about-featured.jpg (square). UV sub-rects with 3.5% inset bezel
-// are applied via geometry UV remap in SphereScene (computed once, not per-frame).
+// -- Shared photo mosaic texture — one shared texture for 2×4 editorial column (§4, §5)
+// Loaded from /img/about-featured.jpg (portrait 3:4, ≥1600 on long edge). UV sub-rects
+// with 3.5% inset bezel are applied via geometry UV remap in SphereScene (computed once).
+// Editorial desaturation (flat grey vs single-accent duotone, both flagged undecided in spec)
+// is resolved here as **flat grey** via a static build-time asset recommendation (§5):
+// pre-process the source photo to a grayscale/duotone PNG so Three.js texture and
+// fallback <img> share one file with zero visual drift. Runtime fallback is a
+// canvas-desaturated clone of the loaded image (live CSS filter is the flexible
+// alternative if the photo swaps often without rebuild — confirm which matters).
 let photoTexture: THREE.Texture | null = null;
 let photoRealLoaded = false;
 let photoPromise: Promise<THREE.Texture | null> | null = null;
 
 function makePhotoFallback1600(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
-  c.width = 1600;
+  c.width = 1200;
   c.height = 1600;
   const ctx = c.getContext("2d")!;
-  const g = ctx.createLinearGradient(0, 0, 1600, 1600);
+  const g = ctx.createLinearGradient(0, 0, 1200, 1600);
   g.addColorStop(0, "#2b2e48");
   g.addColorStop(0.45, "#4a5a78");
   g.addColorStop(1, "#1a1d2e");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1600, 1600);
+  ctx.fillRect(0, 0, 1200, 1600);
   ctx.fillStyle = "rgba(255,255,255,0.05)";
   ctx.beginPath();
-  ctx.ellipse(800, 800, 420, 560, 0, 0, Math.PI * 2);
+  ctx.ellipse(600, 800, 320, 480, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "rgba(255,255,255,0.82)";
-  ctx.font = "700 52px system-ui, sans-serif";
+  ctx.font = "700 44px system-ui, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("STUDIO PORTRAIT", 800, 830);
+  ctx.fillText("STUDIO PORTRAIT", 600, 820);
   ctx.fillStyle = "rgba(255,255,255,0.38)";
-  ctx.font = "500 18px system-ui, sans-serif";
-  ctx.fillText("featured · 1600² · photo mosaic 2×3", 800, 870);
+  ctx.font = "500 16px system-ui, sans-serif";
+  ctx.fillText("featured · 1200×1600 · photo mosaic 2×4", 600, 860);
   ctx.fillStyle = "rgba(255,255,255,0.14)";
-  ctx.font = "500 12px system-ui, sans-serif";
-  ctx.fillText("real featured photo fallback — replace /img/about-featured.jpg", 800, 900);
+  ctx.font = "500 11px system-ui, sans-serif";
+  ctx.fillText("real featured photo fallback — replace /img/about-featured.jpg", 600, 890);
   ctx.strokeStyle = "rgba(255,255,255,0.04)";
   ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(800, 0); ctx.lineTo(800, 1600); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, 533); ctx.lineTo(1600, 533); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, 1066); ctx.lineTo(1600, 1066); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(600, 0); ctx.lineTo(600, 1600); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 400); ctx.lineTo(1200, 400); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 800); ctx.lineTo(1200, 800); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 1200); ctx.lineTo(1200, 1200); ctx.stroke();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.minFilter = THREE.LinearFilter;
@@ -204,9 +211,33 @@ function makePhotoFallback1600(): THREE.CanvasTexture {
 export function getPhotoTexture(): THREE.Texture {
   if (photoTexture) return photoTexture;
   // Immediate fallback so wall never shows black; upgrade in background
+  // Fallback canvas is already desaturated in palette; real image will be
+  // desaturated on load to match the static-asset recommendation.
   photoTexture = makePhotoFallback1600();
   void loadRealPhotoTexture();
   return photoTexture;
+}
+
+// Static-asset recommendation helper: desaturate a loaded image to a canvas
+// so Three.js and fallback <img> can share one greyscale source. This runtime
+// clone is the live fallback when a pre-built grayscale PNG isn't present;
+// for production, replace /img/about-featured.jpg with a pre-processed
+// grayscale/duotone PNG and skip this step. Duotone alternative (single accent
+// over grayscale) would add: ctx.globalCompositeOperation='multiply' + tint fill.
+function desaturateSourceToCanvas(source: HTMLImageElement): HTMLCanvasElement {
+  const w = (source as HTMLImageElement).naturalWidth || (source as unknown as { width: number }).width || 1200;
+  const h = (source as HTMLImageElement).naturalHeight || (source as unknown as { height: number }).height || 1600;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d")!;
+  // Flat grey desaturation — matches FallbackAbout CSS `grayscale(1)` so both paths drift together.
+  // For duotone, apply a luminance-mapped tint after this draw.
+  try {
+    ctx.filter = "grayscale(1) contrast(1.08) brightness(1.03)";
+  } catch { /* filter fallback */ }
+  ctx.drawImage(source as unknown as CanvasImageSource, 0, 0, w, h);
+  return c;
 }
 
 export function loadRealPhotoTexture(): Promise<THREE.Texture | null> {
@@ -220,17 +251,42 @@ export function loadRealPhotoTexture(): Promise<THREE.Texture | null> {
         tex.minFilter = THREE.LinearFilter;
         tex.magFilter = THREE.LinearFilter;
         tex.generateMipmaps = false;
+        // Desaturate to flat grey (static-asset recommendation: pre-process to PNG instead of live filter)
+        // Produce a canvas so Three.js texture and fallback <img> share the same desaturated source.
+        let desaturatedCanvas: HTMLCanvasElement | null = null;
+        try {
+          const img = tex.image as HTMLImageElement;
+          if (img && (img.naturalWidth || (img as unknown as { width: number }).width)) {
+            desaturatedCanvas = desaturateSourceToCanvas(img);
+          }
+        } catch { /* fall through to raw tex */ }
+        const finalImage: CanvasImageSource = (desaturatedCanvas as unknown as CanvasImageSource) || tex.image;
         if (photoTexture && photoTexture !== tex) {
           // In-place upgrade: preserve object identity so photo cards already holding
           // the fallback reference show the real image without per-card reassignment.
-          (photoTexture as THREE.Texture).image = tex.image;
+          (photoTexture as THREE.Texture).image = finalImage;
           photoTexture.needsUpdate = true;
+          // Keep canvas-backed texture crisp
+          if (desaturatedCanvas) {
+            (photoTexture as THREE.Texture).colorSpace = THREE.SRGBColorSpace;
+          }
           photoRealLoaded = true;
           resolve(photoTexture);
         } else {
-          photoTexture = tex;
-          photoRealLoaded = true;
-          resolve(tex);
+          if (desaturatedCanvas) {
+            const canvasTex = new THREE.CanvasTexture(desaturatedCanvas);
+            canvasTex.colorSpace = THREE.SRGBColorSpace;
+            canvasTex.minFilter = THREE.LinearFilter;
+            canvasTex.magFilter = THREE.LinearFilter;
+            canvasTex.generateMipmaps = false;
+            photoTexture = canvasTex;
+            photoRealLoaded = true;
+            resolve(canvasTex);
+          } else {
+            photoTexture = tex;
+            photoRealLoaded = true;
+            resolve(tex);
+          }
         }
       },
       undefined,

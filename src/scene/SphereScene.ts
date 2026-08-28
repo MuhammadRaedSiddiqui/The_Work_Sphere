@@ -30,15 +30,22 @@ const INSIDE_CAM_Z = 0.01;
 const FOG_INSIDE_NEAR = SPHERE_RADIUS * 1.6;
 const FOG_INSIDE_FAR = SPHERE_RADIUS * 3.2;
 
-// Photo mosaic — one shared texture with per-card UV sub-rects and 3.5% inset bezel (§4).
+// Photo mosaic — one shared texture with per-card UV sub-rects and 3.5% inset bezel (§4, §5 editorial).
+// Editorial column is 2×4 (was 2×3), portrait desaturated flat grey (static-asset
+// recommendation: pre-process to PNG; runtime canvas desaturation is the live fallback).
 // Seams are the bezel (UV inset), not spacing gaps; spacing → 0 at p=1.
+// §4 mechanism decision: this build retains the bezel mosaic (option a). If a face
+// visibly fractures across bezel seams at the new 3:4 column aspect in a real build,
+// switch this zone to a single unslit texture for the portrait specifically (no bezel,
+// continuous UVs across the 8 cards) while keeping the mosaic mechanism for other
+// photo content later — do not ship a fractured face. Check at v≈1.5 and v≈3.0.
 // Two equivalent implementations:
 //   (A) geometry UV remap (used here) — clone geometry and lerp UVs to inset sub-rect
 //   (B) material offset/repeat — keep geometry shared, clone texture per card:
 //       const INSET = 0.035;
 //       material.map = sharedPhotoTexture.clone();
-//       material.map.offset.set(localCol/2 + INSET, 1 - (localRow+1)/3 + INSET);
-//       material.map.repeat.set(1/2 - 2*INSET, 1/3 - 2*INSET);
+//       material.map.offset.set(localCol/2 + INSET, 1 - (localRow+1)/4 + INSET);
+//       material.map.repeat.set(1/2 - 2*INSET, 1/4 - 2*INSET);
 // Both produce identical bezel; (A) avoids per-material texture clone overhead.
 // Uniform INSET 0.035 in UV space (~3.5% of card edge) — not world-proportional.
 const PHOTO_INSET = 0.035;
@@ -269,16 +276,18 @@ export class SphereScene {
       let geometry: THREE.PlaneGeometry = baseGeometry;
 
       if (isPhoto) {
-        // Clone geometry and bake UV sub-rect with uniform 3.5% inset bezel — computed once at build, not per-frame (§4, §16)
+        // Clone geometry and bake UV sub-rect with uniform 3.5% inset bezel — computed once at build, not per-frame (§4, §16, §5 editorial 2×4)
         // Equivalent to per-card material offset/repeat (see top-of-file comment for snippet):
-        //   const INSET = 0.035; material.map.offset.set(localCol/2+INSET, 1-(localRow+1)/3+INSET);
-        //   material.map.repeat.set(1/2-2*INSET, 1/3-2*INSET);
+        //   const INSET = 0.035; material.map.offset.set(localCol/2+INSET, 1-(localRow+1)/4+INSET);
+        //   material.map.repeat.set(1/2-2*INSET, 1/4-2*INSET);
         // Geometry UV path avoids extra texture clones while producing identical bezel seams.
+        // If face fractures visibly at editorial aspect, replace this with a single unslit
+        // continuous UV across the 8-card zone (no inset) for the portrait only.
         geometry = baseGeometry.clone() as THREE.PlaneGeometry;
         const uvAttr = geometry.getAttribute("uv") as THREE.BufferAttribute;
         const slotUV = photoSlotUV(slot.index)!;
         const uSlice = 1 / 2;
-        const vSlice = 1 / 3;
+        const vSlice = 1 / 4;
         const u0 = slotUV.colInZone * uSlice;
         const u1 = u0 + uSlice;
         const v1 = 1 - slotUV.rowInZone * vSlice;
@@ -305,9 +314,8 @@ export class SphereScene {
       const material = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         map: materialMap,
-        transparent: false, // critical — do not fade via opacity
-        depthWrite: true, // default; keep it
-        alphaTest: 0.5, // if texture has alpha (rounded corners), discard instead of blending
+        transparent: true, // must render AFTER the lines — opaque objects always render before transparent ones in Three.js
+        depthWrite: true, // cards still occlude each other correctly
         polygonOffset: true,
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,
@@ -454,11 +462,12 @@ export class SphereScene {
       color: 0xffffff,
       transparent: true,
       opacity: LINE_OPACITY,
-      depthTest: true,
       depthWrite: false,
+      depthTest: false, // drawn before anything; nothing to test yet
       fog: true,
     });
     const lines = new THREE.LineSegments(geometry, material);
+    lines.renderOrder = -1; // put them at the head of the queue
     this.scene.add(lines);
     return { lines, basePositions: base, gridPositions: grid };
   }

@@ -23,8 +23,14 @@ export const ARRIVAL_END = 0.74;
 export const BLUEPRINT_END = 0.82;
 export const REVEAL_END = 0.94;
 
-// Zone map — inset crop-safe, outer ring unzoned (§5). Every zone inside rows 1–4, cols 1–6.
-export type ZoneKey = "P" | "E" | "H" | "B" | "T" | "C1" | "C2";
+// Zone map — inset crop-safe, outer ring unzoned (§5, editorial/type-led v2).
+// Working assumption is 23 zoned / 25 unzoned (8 P + 3 E + 8 H + 4 B);
+// T / C1 / C2 are intentionally UNMAPPED pending open decisions in §5 (buttons as
+// quiet text beneath bio vs header nav, tag line cut vs return) — do not assign
+// them to wall cells without an explicit spec decision. They remain defined in
+// aboutZones for fallback reuse but have no wall projection.
+export type ZoneKey = "P" | "E" | "H" | "B";
+export type UnresolvedZoneKey = "T" | "C1" | "C2";
 export type Zone = { key: ZoneKey; row: number; col: number; rowSpan: number; colSpan: number; indices: number[] };
 
 function indicesFor(row: number, col: number, rowSpan: number, colSpan: number): number[] {
@@ -33,23 +39,24 @@ function indicesFor(row: number, col: number, rowSpan: number, colSpan: number):
   return out;
 }
 
+// Editorial map (spec §5): P tall column on RIGHT, not left block.
 export const ZONES: Record<ZoneKey, Zone> = {
-  P: { key: "P", row: 1, col: 1, rowSpan: 3, colSpan: 2, indices: indicesFor(1, 1, 3, 2) },
-  E: { key: "E", row: 1, col: 3, rowSpan: 1, colSpan: 3, indices: indicesFor(1, 3, 1, 3) },
-  H: { key: "H", row: 2, col: 3, rowSpan: 1, colSpan: 4, indices: indicesFor(2, 3, 1, 4) },
-  B: { key: "B", row: 3, col: 3, rowSpan: 1, colSpan: 4, indices: indicesFor(3, 3, 1, 4) },
-  T: { key: "T", row: 4, col: 3, rowSpan: 1, colSpan: 2, indices: indicesFor(4, 3, 1, 2) },
-  C1: { key: "C1", row: 4, col: 5, rowSpan: 1, colSpan: 1, indices: indicesFor(4, 5, 1, 1) },
-  C2: { key: "C2", row: 4, col: 6, rowSpan: 1, colSpan: 1, indices: indicesFor(4, 6, 1, 1) },
+  P: { key: "P", row: 1, col: 5, rowSpan: 4, colSpan: 2, indices: indicesFor(1, 5, 4, 2) },
+  E: { key: "E", row: 1, col: 1, rowSpan: 1, colSpan: 3, indices: indicesFor(1, 1, 1, 3) },
+  H: { key: "H", row: 2, col: 1, rowSpan: 2, colSpan: 4, indices: indicesFor(2, 1, 2, 4) },
+  B: { key: "B", row: 4, col: 1, rowSpan: 1, colSpan: 4, indices: indicesFor(4, 1, 1, 4) },
 };
 
-// Set of all zoned indices (21 cells), photo set (6), text/unzoned distinction
+// Set of all zoned indices (23 cells editorial), photo set (8), text/unzoned distinction
 export const ZONED_INDICES = new Set<number>(Object.values(ZONES).flatMap((z) => z.indices));
 export const PHOTO_INDICES = new Set<number>(ZONES.P.indices);
-export const TEXT_ZONE_INDICES = new Set<number>([...ZONES.E.indices, ...ZONES.H.indices, ...ZONES.B.indices, ...ZONES.T.indices, ...ZONES.C1.indices, ...ZONES.C2.indices]);
+export const TEXT_ZONE_INDICES = new Set<number>([...ZONES.E.indices, ...ZONES.H.indices, ...ZONES.B.indices]);
 export const UNZONED_INDICES = new Set<number>(Array.from({ length: TOTAL_CARDS }, (_, i) => i).filter((i) => !ZONED_INDICES.has(i)));
 
-// Sub-rect position of a photo card within the 2×3 mosaic (colInZone 0–1, rowInZone 0–2)
+// Sub-rect position of a photo card within the 2×4 mosaic (colInZone 0–1, rowInZone 0–3)
+// Spec §4 option (a) retains bezel mosaic; options (b)/(c) would use 1×4 or single span.
+// This helper computes the mosaic slot; for a single-unsliced mode the caller should
+// map full-zone UVs instead (still via this col/row but with no inset).
 export function photoSlotUV(slotIndex: number): { colInZone: number; rowInZone: number } | null {
   if (!PHOTO_INDICES.has(slotIndex)) return null;
   const row = Math.floor(slotIndex / GRID_COLS);
