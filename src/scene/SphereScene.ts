@@ -61,7 +61,6 @@ type Card = {
 };
 
 export class SphereScene {
-  private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private cards: Card[] = [];
@@ -77,13 +76,8 @@ export class SphereScene {
   private dragStart: { x: number; y: number } | null = null;
   private clickCandidate = false;
 
-  private clock = new THREE.Clock();
   private elapsed = 0;
-  private resizeTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly resizeDelayMs = 150;
-  private rafId = 0;
   private disposed = false;
-  private pausedOffscreen = false;
   private reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   private scrubP = 0;
@@ -117,13 +111,7 @@ export class SphereScene {
   private blackColor = new THREE.Color(BACKGROUND_COLOR);
   private whiteColor = new THREE.Color(0xffffff);
 
-  constructor(private container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
-    this.renderer.domElement.style.touchAction = "none";
-    container.appendChild(this.renderer.domElement);
-
+  constructor(private container: HTMLElement, private canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(BACKGROUND_COLOR);
     this.scene.fog = new THREE.Fog(BACKGROUND_COLOR, FOG_INSIDE_NEAR, FOG_INSIDE_FAR);
@@ -141,16 +129,6 @@ export class SphereScene {
     this.connectorGridPositions = built.gridPositions;
 
     this.bindPointer();
-    window.addEventListener("resize", this.onResize);
-    // iOS Safari: URL-bar collapse fires visualViewport resize, not window resize
-    const vv = (window as unknown as { visualViewport?: VisualViewport }).visualViewport;
-    if (vv) {
-      vv.addEventListener("resize", this.onResize);
-      vv.addEventListener("scroll", this.onResize);
-    }
-    // Pin-end handoff: pause WebGL once wall fully off-screen (§15)
-    this.setupOffscreenPause();
-    this.animate();
   }
 
   setScrubProgress(p: number) {
@@ -159,6 +137,8 @@ export class SphereScene {
   }
 
   setOnScrub(cb: ((p: number) => void) | null) { this.onScrubCb = cb; }
+  getRenderScene() { return this.scene; }
+  getRenderCamera() { return this.camera; }
 
   getViewMode(): "inside" | "outside" {
     return this.viewModeTarget === 1 ? "outside" : "inside";
@@ -466,7 +446,7 @@ export class SphereScene {
   }
 
   private bindPointer() {
-    const el = this.renderer.domElement;
+    const el = this.canvas;
     el.addEventListener("pointerdown", this.onPointerDown);
     el.addEventListener("pointermove", this.onPointerMove);
     el.addEventListener("pointerup", this.onPointerUp);
@@ -543,47 +523,8 @@ export class SphereScene {
     this.rot.premultiply(this.tmpQ);
   }
 
-  private setupOffscreenPause() {
-    const io = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (!entry) return;
-        this.setOffscreenPaused(!entry.isIntersecting);
-      },
-      { threshold: 0 }
-    );
-    io.observe(this.container);
-    // Store for dispose via closure — we recreate on each construction only
-    (this as unknown as { _io: IntersectionObserver })._io = io;
-  }
-
-  private setOffscreenPaused(paused: boolean) {
-    if (this.pausedOffscreen === paused || this.disposed) return;
-    this.pausedOffscreen = paused;
-    if (paused) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = 0;
-      return;
-    }
-
-    // Recompute from the live scrub/camera state before drawing again. Resetting the
-    // clock prevents the time spent off-screen from becoming one large simulation step.
-    this.clock.getDelta();
-    this.updateFrame(0);
-    this.renderer.render(this.scene, this.camera);
-    this.rafId = requestAnimationFrame(this.animate);
-  }
-
-  private animate = () => {
-    this.rafId = 0;
-    if (this.disposed || this.pausedOffscreen) return;
-    const dt = Math.min(this.clock.getDelta(), 0.05);
-    this.updateFrame(dt);
-    this.renderer.render(this.scene, this.camera);
-    this.rafId = requestAnimationFrame(this.animate);
-  };
-
-  private updateFrame(dt: number) {
+  update(dt: number) {
+    if (this.disposed) return;
     this.elapsed += dt;
 
     const pForToggleGate = this.scrubP;
@@ -871,17 +812,7 @@ export class SphereScene {
     }
   }
 
-  private onResize = () => {
-    clearTimeout(this.resizeTimer);
-    this.resizeTimer = setTimeout(() => this.resize(), this.resizeDelayMs);
-  };
-  private resize() {
-    // iOS Safari: visualViewport.height reflects the true layout viewport after URL-bar collapse
-    const vv = (window as unknown as { visualViewport?: VisualViewport }).visualViewport;
-    const w = this.container.clientWidth || (vv ? vv.width : window.innerWidth);
-    // Prefer container size, but if visualViewport shrank (URL bar), use that for camera aspect
-    // to keep cover framing correct; the container itself is sized by CSS dvh.
-    const h = this.container.clientHeight || (vv ? vv.height : window.innerHeight);
+  resize(w: number, h: number) {
     if (w === 0 || h === 0) return;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -892,31 +823,17 @@ export class SphereScene {
     const liveZ = THREE.MathUtils.lerp(INSIDE_CAM_Z, this.outsideDistance, this.toggleProgress);
     this.camera.position.z = THREE.MathUtils.lerp(liveZ, this.coverDistance, flightT);
     this.camera.lookAt(0, 0, 0);
-    this.renderer.setSize(w, h);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   }
 
   dispose() {
     this.disposed = true;
-    cancelAnimationFrame(this.rafId);
-    clearTimeout(this.resizeTimer);
     const t = (this as unknown as { _thumbIdleTimer?: ReturnType<typeof setTimeout> })._thumbIdleTimer;
     if (t) clearTimeout(t);
-    window.removeEventListener("resize", this.onResize);
-    const vv = (window as unknown as { visualViewport?: VisualViewport }).visualViewport;
-    if (vv) {
-      vv.removeEventListener("resize", this.onResize);
-      vv.removeEventListener("scroll", this.onResize);
-    }
-    const io = (this as unknown as { _io: IntersectionObserver })._io;
-    if (io) io.disconnect();
-    const el = this.renderer.domElement;
+    const el = this.canvas;
     el.removeEventListener("pointerdown", this.onPointerDown);
     el.removeEventListener("pointermove", this.onPointerMove);
     el.removeEventListener("pointerup", this.onPointerUp);
     el.removeEventListener("pointercancel", this.onPointerUp);
-    this.renderer.dispose();
-    el.remove();
   }
 }
 

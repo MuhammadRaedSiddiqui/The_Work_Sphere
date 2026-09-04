@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SphereScene } from "./scene/SphereScene";
+import { SceneLifecycleManager } from "./scene/SceneLifecycleManager";
 import ProjectPanel, { type ProjectPanelHandle } from "./components/ProjectPanel";
 import FallbackAbout from "./components/FallbackAbout";
 import { projects } from "./data/projects";
@@ -28,7 +29,6 @@ export default function App() {
   const sceneRef = useRef<SphereScene | null>(null);
   const stRef = useRef<ScrollTrigger | null>(null);
   const projectPanelRef = useRef<ProjectPanelHandle>(null);
-  const rafZoneRef = useRef<number>(0);
   const panelNavigationAnimatingRef = useRef(false);
   const wheelAccumRef = useRef(0);
   const wheelAccumTimerRef = useRef<number | null>(null);
@@ -119,7 +119,8 @@ export default function App() {
   // ---- Scene + ScrollTrigger (gated) -----------------------------------
   useEffect(() => {
     if (!triggerRef.current || !containerRef.current) return;
-    const scene = new SphereScene(containerRef.current);
+    const lifecycle = new SceneLifecycleManager();
+    const scene = new SphereScene(containerRef.current, lifecycle.renderer.domElement);
     sceneRef.current = scene;
     (window as unknown as { __sphere?: SphereScene }).__sphere = scene;
     if (vignetteRef.current) scene.setVignetteEl(vignetteRef.current);
@@ -135,7 +136,6 @@ export default function App() {
       setExpandedIdx(fi);
       scene.setExpandedSlot(slotIndex);
     });
-
     let scrollIntentFired = false;
     const fireScrollIntent = () => {
       if (scrollIntentFired) return;
@@ -226,7 +226,6 @@ export default function App() {
     // to carry 4 lines + 2 bio lines + contact. All zone roots are padding:0, borderRadius:0,
     // flush to projected cell rect. Photo bleeds to top/right/bottom with no border.
     const updateZones = () => {
-      rafZoneRef.current = requestAnimationFrame(updateZones);
       const p = scene.getScrubProgress();
       const layer = zoneLayerRef.current;
       if (!layer) return;
@@ -286,10 +285,20 @@ export default function App() {
         }
       }
     };
-    updateZones();
+    const unregisterScene = lifecycle.register({
+      id: "hero-about",
+      scene: scene.getRenderScene(),
+      camera: scene.getRenderCamera(),
+      element: containerRef.current,
+      update: (deltaSeconds) => {
+        scene.update(deltaSeconds);
+        updateZones();
+      },
+      resize: ({ width, height }) => scene.resize(width, height),
+    });
+    lifecycle.setActive("hero-about");
 
     return () => {
-      cancelAnimationFrame(rafZoneRef.current);
       window.removeEventListener("wheel", onFirstWheel as EventListener);
       window.removeEventListener("touchmove", onFirstTouch as EventListener);
       if (detectScrubFromDelta) window.removeEventListener("wheel", detectScrubFromDelta as EventListener);
@@ -304,7 +313,9 @@ export default function App() {
       scene.setOnCardClick(null);
       scene.setOnViewModeChange(null);
       scene.setVignetteEl(null);
+      unregisterScene();
       scene.dispose();
+      lifecycle.dispose();
       sceneRef.current = null;
       delete (window as unknown as { __sphere?: unknown }).__sphere;
     };
