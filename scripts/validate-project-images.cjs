@@ -28,6 +28,7 @@ const NORMALIZE    = process.argv.includes('--normalize');
 const SKIP_DIMS    = process.argv.includes('--skip-dimensions');
 
 const ASPECT_TOLERANCE = 0.02;
+// Keep these CommonJS image-validation ratios aligned with src/constants.ts.
 const RULES = {
   thumb:            { aspect: 3 / 2, minWidth: 800,  label: '3:2, ≥800w' },
   hero:             { aspect: null,  minWidth: 1600, label: 'native aspect, ≥1600w' },

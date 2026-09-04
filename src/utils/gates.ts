@@ -1,5 +1,12 @@
 import * as THREE from "three";
-import { ZONES, ZONE_BLEED_ROWS } from "../constants";
+import {
+  DEVICE_TIER_GATE,
+  ZONES,
+  ZONE_BLEED_ROWS,
+  ZONE_GATE_BAND,
+  ZONE_GATE_FOV_DEG,
+  ZONE_GATE_SAFETY_MARGIN_PX,
+} from "../constants";
 import { GRID_WIDTH, GRID_HEIGHT, CARD_WIDTH, CARD_HEIGHT, gridPositions } from "../scene/layout";
 
 // ---------------------------------------------------------------------------
@@ -7,11 +14,8 @@ import { GRID_WIDTH, GRID_HEIGHT, CARD_WIDTH, CARD_HEIGHT, gridPositions } from 
 // Any one failing → fallback (pin never created, conventional About layout).
 // Evaluated at init, debounced resize, and orientationchange. A flip
 // reinitializes at progress 0 (handled in App.tsx).
-// Spec-final safe band is v ∈ (1.65, 2.61) for δ≈0.3, not 1.5–3.0.
+// Derived gate inputs and bounds live in src/constants.ts.
 // ---------------------------------------------------------------------------
-
-const FOV_DEG = 60;
-const SAFETY_MARGIN = 8;
 
 export function prefersReducedMotion(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
@@ -21,10 +25,10 @@ export function prefersReducedMotion(): boolean {
 export function isLowTierDevice(): boolean {
   if (typeof window === "undefined") return false;
   const vw = window.innerWidth;
-  if (vw < 768) return true;
+  if (vw < DEVICE_TIER_GATE.minViewportWidth) return true;
   const dm = (navigator as unknown as { deviceMemory?: number }).deviceMemory;
-  if (typeof dm === "number" && dm > 0 && dm <= 2) return true;
-  if (typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 2) {
+  if (typeof dm === "number" && dm > 0 && dm <= DEVICE_TIER_GATE.maxDeviceMemory) return true;
+  if (typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= DEVICE_TIER_GATE.maxHardwareConcurrency) {
     return true;
   }
   const conn = (navigator as unknown as { connection?: { saveData?: boolean } }).connection;
@@ -40,9 +44,8 @@ export function isLowTierDevice(): boolean {
 /**
  * Zone-visibility gate (spec §7 final).
  * Axis-fit cover framing, projects each zone's rect, fails if any rect
- * extends outside viewport minus SAFETY_MARGIN (8px).
- * Final safe band is v ∈ (1.65, 2.61) for δ≈0.3 bleed on H/BC — not a
- * conditional branch. H and BC keep single-row footprints and bleed via
+ * extends outside viewport minus the configured safety margin. H and BC keep
+ * single-row footprints and bleed via
  * the narrowly-scoped §16 exception; their checked rects are expanded by δ.
  */
 export function passesZoneVisibilityGate(
@@ -52,9 +55,9 @@ export function passesZoneVisibilityGate(
   if (vw <= 0 || vh <= 0) return false;
 
   const aspect = vw / vh;
-  // Closing-pass final gate: v ∈ (1.65, 2.61) for δ≈0.3 — not 1.5–3.0.
-  if (aspect < 1.65 || aspect > 2.61) return false;
-  const fovRad = (FOV_DEG * Math.PI) / 180;
+  const [minAspect, maxAspect] = ZONE_GATE_BAND;
+  if (aspect < minAspect || aspect > maxAspect) return false;
+  const fovRad = (ZONE_GATE_FOV_DEG * Math.PI) / 180;
   const halfTan = Math.tan(fovRad / 2);
   if (halfTan < 1e-6) return false;
 
@@ -62,7 +65,7 @@ export function passesZoneVisibilityGate(
   const dWidthFit = GRID_WIDTH / (2 * halfTan * aspect);
   const coverDistance = Math.min(dHeightFit, dWidthFit);
 
-  const camera = new THREE.PerspectiveCamera(FOV_DEG, aspect, 0.1, 100);
+  const camera = new THREE.PerspectiveCamera(ZONE_GATE_FOV_DEG, aspect, 0.1, 100);
   camera.position.set(0, 0, coverDistance);
   camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld(true);
@@ -133,7 +136,7 @@ export function passesZoneVisibilityGate(
       continue;
     }
 
-    if (sxMin < SAFETY_MARGIN || sxMax > vw - SAFETY_MARGIN || syMin < SAFETY_MARGIN || syMax > vh - SAFETY_MARGIN) {
+    if (sxMin < ZONE_GATE_SAFETY_MARGIN_PX || sxMax > vw - ZONE_GATE_SAFETY_MARGIN_PX || syMin < ZONE_GATE_SAFETY_MARGIN_PX || syMax > vh - ZONE_GATE_SAFETY_MARGIN_PX) {
       return false;
     }
   }

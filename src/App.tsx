@@ -6,7 +6,15 @@ import ExpandedPanel from "./components/ExpandedPanel";
 import FallbackAbout from "./components/FallbackAbout";
 import { projects } from "./data/projects";
 import type { Project } from "./types";
-import { ZONES } from "./constants";
+import {
+  ARRIVAL_END,
+  BLUEPRINT_END,
+  HERO_HEADLINE_FADE_END,
+  INTERACTION_LOCK_EPSILON,
+  REVEAL_END,
+  TOGGLE_HIDE_END,
+  ZONES,
+} from "./constants";
 import { shouldUseFallback } from "./utils/gates";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -29,7 +37,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<"inside" | "outside">("inside");
   const [scrubP, setScrubP] = useState(0);
 
-  // ---- Gates — closing-pass final: v ∈ (1.65, 2.61) for δ≈0.3 ----
+  // ---- Gates (derived values live in src/constants.ts) --------------------
   const [isFallback, setIsFallback] = useState<boolean>(() => {
     try { return shouldUseFallback(); } catch { return false; }
   });
@@ -172,7 +180,7 @@ export default function App() {
           setScrubP(p);
           scene.setScrubProgress(p);
           if (heroHeadlineRef.current) {
-            const t = Math.min(p / 0.12, 1);
+            const t = Math.min(p / HERO_HEADLINE_FADE_END, 1);
             heroHeadlineRef.current.style.opacity = String(1 - t);
             heroHeadlineRef.current.style.transform = `translateY(${t * -8}px)`;
             heroHeadlineRef.current.style.pointerEvents = t >= 0.98 ? "none" : "auto";
@@ -218,11 +226,11 @@ export default function App() {
       const p = scene.getScrubProgress();
       const layer = zoneLayerRef.current;
       if (!layer) return;
-      const revealT = Math.max(0, Math.min(1, (p - 0.82) / (0.94 - 0.82)));
-      const layerOpacity = p < 0.82 ? 0 : revealT;
+      const revealT = Math.max(0, Math.min(1, (p - BLUEPRINT_END) / (REVEAL_END - BLUEPRINT_END)));
+      const layerOpacity = p < BLUEPRINT_END ? 0 : revealT;
       layer.style.opacity = String(layerOpacity);
-      layer.style.pointerEvents = p >= 0.82 ? "auto" : "none";
-      if (p < 0.74 || isFallback) return;
+      layer.style.pointerEvents = p >= BLUEPRINT_END ? "auto" : "none";
+      if (p < ARRIVAL_END || isFallback) return;
       // Only H and BC have HTML overlays; P is pure WebGL photo texture
       // H is single-row at row 1, BC nominally at row 4 — the visual gap is rAF-positioned to 2px
       let hRect: { left: number; top: number; width: number } | null = null;
@@ -341,7 +349,7 @@ export default function App() {
   const expandedProject = expandedIdx !== null ? filteredProjects[expandedIdx] : null;
   const canvasBlur = expandedIdx !== null ? "blur(14px) saturate(0.9)" : "blur(0px)";
   const scrubLocked = isFallback;
-  const effectiveToggleHidden = expandedIdx !== null || (!scrubLocked && scrubP > 0.10);
+  const effectiveToggleHidden = expandedIdx !== null || (!scrubLocked && scrubP > TOGGLE_HIDE_END);
 
   const handleToggle = () => {
     const next: "inside" | "outside" = viewMode === "inside" ? "outside" : "inside";
@@ -360,7 +368,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [expandedIdx]);
 
-  const onboardingHidden = hasScrolled || (!isFallback && scrubP > 0.02) || expandedIdx !== null;
+  const onboardingHidden = hasScrolled || (!isFallback && scrubP > INTERACTION_LOCK_EPSILON) || expandedIdx !== null;
 
   return (
     <div style={{ background: "#000" }}>
@@ -532,10 +540,10 @@ export default function App() {
             No E, no T. Photo P is pure WebGL single unsliced BW — no HTML overlay. */}
         <div
           ref={zoneLayerRef}
-          aria-hidden={isFallback || scrubP < 0.82}
+          aria-hidden={isFallback || scrubP < BLUEPRINT_END}
           style={{
             position: "absolute", inset: 0,
-            pointerEvents: !isFallback && scrubP >= 0.82 ? "auto" : "none",
+            pointerEvents: !isFallback && scrubP >= BLUEPRINT_END ? "auto" : "none",
             opacity: 0,
             transition: "opacity 120ms linear",
             zIndex: 2,

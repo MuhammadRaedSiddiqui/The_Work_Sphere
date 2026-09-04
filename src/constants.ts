@@ -2,10 +2,15 @@
 // ring table + grid geometry owned by the transition spec per CLAUDE.md).
 export const BACKGROUND_COLOR = 0x000000;
 export const CARD_FILL_COLOR = 0x33333a;
+export const IDLE_STROKE_OPACITY = 0.33;
+export const CONNECTOR_LINE_OPACITY = 0.16;
+export const OUTSIDE_CONNECTOR_LINE_OPACITY = 0.20;
 
 // Card aspect is 3:2 (w:h) — locked; the 8×6 grid's native aspect of 2.0
 // derives from it and the transition spec's gate math depends on it.
-export const CARD_ASPECT = 3 / 2;
+const CARD_ASPECT_WIDTH = 3;
+const CARD_ASPECT_HEIGHT = 2;
+export const CARD_ASPECT = CARD_ASPECT_WIDTH / CARD_ASPECT_HEIGHT;
 
 // Cards per latitude ring, north to south. Sums to 48.
 export const RING_TABLE: readonly number[] = [4, 8, 12, 12, 8, 4];
@@ -14,14 +19,27 @@ export const CARD_COUNT = RING_TABLE.reduce((a, b) => a + b, 0);
 // Target flat layout: 8 columns × 6 rows, row-major (row = floor(i/8), col = i%8).
 export const GRID_COLS = 8;
 export const GRID_ROWS = 6;
+export const GRID_ASPECT = (GRID_COLS * CARD_ASPECT_WIDTH) / (GRID_ROWS * CARD_ASPECT_HEIGHT);
 
 export const TOTAL_CARDS = CARD_COUNT;
 
 // Progress budget (v2, §6): flight 0–0.62 · arrival 0.62–0.74 · blueprint 0.74–0.82 · reveal 0.82–0.94 · settled 0.94–1.0
+export const INTERACTION_LOCK_EPSILON = 0.02;
+export const TOGGLE_HIDE_END = 0.10;
+export const HERO_HEADLINE_FADE_END = 0.12;
 export const FLIGHT_END = 0.62;
 export const ARRIVAL_END = 0.74;
 export const BLUEPRINT_END = 0.82;
 export const REVEAL_END = 0.94;
+
+export const DEVICE_TIER_GATE = {
+  minViewportWidth: 768,
+  maxDeviceMemory: 2,
+  maxHardwareConcurrency: 2,
+} as const;
+
+export const ZONE_GATE_FOV_DEG = 60;
+export const ZONE_GATE_SAFETY_MARGIN_PX = 8;
 
 // Zone map — closing-pass final (spec §5) — full-bleed fix.
 // Three zones: P (photo, right 3 cols full height touches top/right/bottom), H (headline, left 4 cols single-row nominal),
@@ -53,6 +71,38 @@ export const UNZONED_INDICES = new Set<number>(Array.from({ length: TOTAL_CARDS 
 
 // Gate bleed for H/BC overflow exception — δ≈0.3 row-heights, final (spec §5, §7, §16)
 export const ZONE_BLEED_ROWS = 0.3;
+
+function deriveRawZoneGateBand(): readonly [number, number] {
+  // Cover framing makes this structural aspect calculation independent of FOV.
+  // The pixel safety margin is applied by passesZoneVisibilityGate to the projected rects,
+  // where viewport dimensions are available.
+  const halfFovTangent = Math.tan((ZONE_GATE_FOV_DEG * Math.PI) / 360);
+  if (!Number.isFinite(halfFovTangent) || halfFovTangent <= 0) {
+    throw new Error("ZONE_GATE_FOV_DEG must produce a finite positive projection scale.");
+  }
+
+  const safeBuffer = 1 - ZONE_BLEED_ROWS;
+  const halfColumns = GRID_COLS / 2;
+  const halfRows = GRID_ROWS / 2;
+  const minAspect = GRID_ASPECT * (1 - safeBuffer / halfColumns);
+  const maxAspect = (halfRows * GRID_ASPECT) / (halfRows - safeBuffer);
+  return [minAspect, maxAspect] as const;
+}
+
+const rawZoneGateBand = deriveRawZoneGateBand();
+// The gate contract is published to two decimal places; preserve that shipped cutoff.
+export const ZONE_GATE_BAND = rawZoneGateBand.map((value) => Math.round(value * 100) / 100) as [number, number];
+
+if (import.meta.env.DEV) {
+  const derivedValueTolerance = 1e-9;
+  const [zoneGateMin, zoneGateMax] = ZONE_GATE_BAND;
+  if (Math.abs(GRID_ASPECT - 2) > derivedValueTolerance) {
+    throw new Error("GRID_ASPECT changed: check GRID_COLS, GRID_ROWS, CARD_ASPECT_WIDTH, and CARD_ASPECT_HEIGHT.");
+  }
+  if (Math.abs(zoneGateMin - 1.65) > derivedValueTolerance || Math.abs(zoneGateMax - 2.61) > derivedValueTolerance) {
+    throw new Error("ZONE_GATE_BAND changed: check GRID_COLS, GRID_ROWS, CARD_ASPECT_WIDTH, CARD_ASPECT_HEIGHT, and ZONE_BLEED_ROWS. ZONE_GATE_FOV_DEG and ZONE_GATE_SAFETY_MARGIN_PX are enforced by the projection gate.");
+  }
+}
 
 // Photo zone helper — single unsliced image spanning the aggregate rect (§4 final).
 // Each of the 18 cards maps a continuous sub-rect with no inset, no bezel.

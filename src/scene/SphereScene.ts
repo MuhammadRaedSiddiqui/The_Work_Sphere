@@ -1,5 +1,18 @@
 import * as THREE from "three";
-import { BACKGROUND_COLOR, ARRIVAL_END, BLUEPRINT_END, REVEAL_END, FLIGHT_END, PHOTO_INDICES, photoSliceUV, ZONES } from "../constants";
+import {
+  ARRIVAL_END,
+  BACKGROUND_COLOR,
+  BLUEPRINT_END,
+  CONNECTOR_LINE_OPACITY,
+  FLIGHT_END,
+  IDLE_STROKE_OPACITY,
+  INTERACTION_LOCK_EPSILON,
+  OUTSIDE_CONNECTOR_LINE_OPACITY,
+  PHOTO_INDICES,
+  photoSliceUV,
+  REVEAL_END,
+  ZONES,
+} from "../constants";
 import {
   cardSlots,
   buildConnectorPairs,
@@ -17,11 +30,11 @@ import type { Project } from "../types";
 const IDLE_SPEED = 0.045;
 const MOMENTUM_DECAY = 2.6;
 const IDLE_RESUME_EPS = 0.01;
-const STROKE_OPACITY = 0.33;
+const STROKE_OPACITY = IDLE_STROKE_OPACITY;
 const STROKE_BOOST = 0.9;
 const STROKE_BOOST_END = 0.78;
-const LINE_OPACITY = 0.16;
-const OUTSIDE_LINE_OPACITY = 0.20;
+const LINE_OPACITY = CONNECTOR_LINE_OPACITY;
+const OUTSIDE_LINE_OPACITY = OUTSIDE_CONNECTOR_LINE_OPACITY;
 const ENTRANCE_DURATION = 0.9;
 
 const TOGGLE_TARGET_FRAC = 0.70;
@@ -373,16 +386,16 @@ export class SphereScene {
       // After cache fills, eligible swaps happen in updateCards when safe
       if (this.disposed) return;
       // Trigger one immediate safe-swap pass if we're at sphere
-      if (this.scrubP <= 0.02) this.applyPendingThumbnailSwaps();
+      if (this.scrubP <= INTERACTION_LOCK_EPSILON) this.applyPendingThumbnailSwaps();
     });
     // Also warm individual loads as fallback for any slot that already cached
     for (const p of realProjects) {
       void loadThumbnailTexture(p).then((tex) => {
         if (this.disposed) return;
         // Try swap if safe; otherwise it will happen on next safe window in updateCards
-        if (this.scrubP <= 0.02) {
+        if (this.scrubP <= INTERACTION_LOCK_EPSILON) {
           const card = this.cards.find((c) => projects[c.slot.index]?.id === p.id);
-          if (!card || card.isPhoto && this.scrubP >= 0.62) return;
+          if (!card || card.isPhoto && this.scrubP >= FLIGHT_END) return;
           if (card.thumbMap !== tex) {
             card.thumbMap = tex;
             if (this.scrubP <= FLIGHT_END) {
@@ -397,7 +410,7 @@ export class SphereScene {
   }
 
   private applyPendingThumbnailSwaps(): void {
-    if (this.scrubP > 0.02) return;
+    if (this.scrubP > INTERACTION_LOCK_EPSILON) return;
     for (const card of this.cards) {
       const proj = projects[card.slot.index];
       if (!proj) continue;
@@ -453,7 +466,7 @@ export class SphereScene {
   }
 
   private onPointerDown = (e: PointerEvent) => {
-    if (this.scrubP > 0.02) return;
+    if (this.scrubP > INTERACTION_LOCK_EPSILON) return;
     if (this.expandedSlotIndex !== null) return;
     this.dragging = true;
     this.clickCandidate = true;
@@ -465,7 +478,7 @@ export class SphereScene {
 
   private onPointerMove = (e: PointerEvent) => {
     if (!this.dragging || !this.lastPointer) return;
-    if (this.scrubP > 0.02) return;
+    if (this.scrubP > INTERACTION_LOCK_EPSILON) return;
     if (this.expandedSlotIndex !== null) return;
     const now = performance.now();
     const dt = Math.max((now - this.lastPointer.t) / 1000, 1e-4);
@@ -489,7 +502,7 @@ export class SphereScene {
   private onPointerUp = (e: PointerEvent) => {
     const wasDragging = this.dragging;
     if (this.dragging) { this.dragging = false; this.lastPointer = null; }
-    if (wasDragging && this.clickCandidate && this.scrubP <= 0.02 && this.expandedSlotIndex === null && this.onCardClickCb) {
+    if (wasDragging && this.clickCandidate && this.scrubP <= INTERACTION_LOCK_EPSILON && this.expandedSlotIndex === null && this.onCardClickCb) {
       const rect = this.container.getBoundingClientRect();
       this.ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -529,7 +542,7 @@ export class SphereScene {
         if (!entry) return;
         const offscreen = !entry.isIntersecting;
         // Only pause when settled (pin-end already scrolled past) — during flight we keep rendering even if clipped by cover crop
-        if (offscreen && this.scrubP >= 0.94) {
+        if (offscreen && this.scrubP >= REVEAL_END) {
           if (!this.pausedOffscreen) {
             this.pausedOffscreen = true;
             // keep the rAF loop but skip render — cheaper than fully tearing down
@@ -573,7 +586,7 @@ export class SphereScene {
     }
     const toggleT = this.toggleProgress;
 
-    const interactive = this.scrubP <= 0.02;
+    const interactive = this.scrubP <= INTERACTION_LOCK_EPSILON;
     if (interactive) {
       if (this.dragging) {
       } else if (Math.abs(this.angVel.x) > IDLE_RESUME_EPS || Math.abs(this.angVel.y) > IDLE_RESUME_EPS) {
@@ -675,7 +688,7 @@ export class SphereScene {
 
       // Safe thumbnail upgrade — real thumb swaps only when back at sphere (p≤0.02)
       // so flight never pops. Works for both eager idle loads and scroll-intent preloads.
-      if (scrubP <= 0.02) {
+      if (scrubP <= INTERACTION_LOCK_EPSILON) {
         const proj = projects[card.slot.index];
         if (proj) {
           const cached = getCachedThumbnail(proj.id);
@@ -782,7 +795,7 @@ export class SphereScene {
           mat.color.copy(this.blackColor);
           // After arrival, thumbnails / hatch should never be reassigned (§16: don't assign-then-hide)
           // Keep map null-equivalent by leaving color black; clearing map ensures some drivers don't ghost
-          if (scrubP >= ARRIVAL_END + 0.02 && mat.map !== null) {
+          if (scrubP >= ARRIVAL_END + INTERACTION_LOCK_EPSILON && mat.map !== null) {
             // Keep a null map illusion: the black color already makes texture invisible,
             // but to satisfy the "never assigned past State 3" guarantee we could clear.
             // Only clear for non-photo text/unzoned after the fade has advanced a bit so reversal is still smooth
