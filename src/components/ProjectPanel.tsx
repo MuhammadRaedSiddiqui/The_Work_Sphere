@@ -1,7 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useCallback, useState } from "react";
 import gsap from "gsap";
+import { CARD_FILL_COLOR, IDLE_STROKE_OPACITY } from "../constants";
 import { projects } from "../data/projects";
 import type { Project } from "../types";
+
+const CARD_FILL_CSS = `#${CARD_FILL_COLOR.toString(16).padStart(6, "0")}`;
 
 export type ProjectPanelProps = {
   project: Project;
@@ -224,23 +227,11 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
                 style={{ width: "100%", height: "auto", display: "block" }}
               />
             ) : (
-              <div
-                style={{
-                  width: "100%",
-                  aspectRatio: "1.83 / 1",
-                  background: `linear-gradient(135deg, hsl(${hueFor(project.id)},30%,18%) 0%, hsl(${(hueFor(project.id)+40)%360},22%,10%) 100%)`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "rgba(255,255,255,0.18)",
-                  fontFamily: "system-ui, sans-serif",
-                  fontSize: 50,
-                  fontWeight: 700,
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                {project.title.slice(0, 2).toUpperCase()}
-              </div>
+              <img
+                src="/img/coming-soon.jpg"
+                alt=""
+                style={{ width: "100%", height: "auto", display: "block" }}
+              />
             )}
           </div>
 
@@ -348,7 +339,7 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
               opacity: hasNext ? 1 : 0.55,
             }}
           >
-            <div style={{ width: 56, height: 36, borderRadius: 8, background: hasNext ? `hsl(${hueFor(nextProject!.id)},28%,16%)` : "rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>
+            <div style={{ width: 56, height: 36, borderRadius: 8, background: CARD_FILL_CSS, border: `1px solid rgba(255,255,255,${IDLE_STROKE_OPACITY})`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>
               {hasNext ? nextProject!.title.slice(0, 2).toUpperCase() : "—"}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -374,12 +365,6 @@ export default ProjectPanel;
 
 function isMobile() {
   return typeof window !== "undefined" ? window.innerWidth < 768 : false;
-}
-
-function hueFor(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
-  return h;
 }
 
 const linkStyle: React.CSSProperties = {
