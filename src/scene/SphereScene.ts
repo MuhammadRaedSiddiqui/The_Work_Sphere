@@ -102,7 +102,7 @@ export class SphereScene {
 
   private raycaster = new THREE.Raycaster();
   private ndc = new THREE.Vector2();
-  private onCardClickCb: ((slotIndex: number, screenPos: { x: number; y: number }) => void) | null = null;
+  private onCardClickCb: ((slotIndex: number, screenRect: DOMRect) => void) | null = null;
   private expandedSlotIndex: number | null = null;
 
   private tmpQ = new THREE.Quaternion();
@@ -213,16 +213,24 @@ export class SphereScene {
   }
   private notifyViewModeChange() { this.onViewModeChangeCb?.(this.getViewMode(), this.toggleProgress); }
 
-  setOnCardClick(cb: ((slotIndex: number, screenPos: { x: number; y: number }) => void) | null) { this.onCardClickCb = cb; }
+  setOnCardClick(cb: ((slotIndex: number, screenRect: DOMRect) => void) | null) { this.onCardClickCb = cb; }
   setExpandedSlot(index: number | null) { this.expandedSlotIndex = index; }
-  getCardScreenPosition(slotIndex: number): { x: number; y: number } | null {
+  getCardScreenPosition(slotIndex: number): DOMRect | null {
     const card = this.cards.find((c) => c.slot.index === slotIndex);
     if (!card) return null;
-    const pos = card.mesh.getWorldPosition(this.tmpV);
-    pos.project(this.camera);
-    const x = (pos.x * 0.5 + 0.5) * this.container.clientWidth;
-    const y = (-pos.y * 0.5 + 0.5) * this.container.clientHeight;
-    return { x, y };
+    card.mesh.updateMatrixWorld(true);
+    const containerRect = this.container.getBoundingClientRect();
+    const corners = [
+      new THREE.Vector3(-CARD_WIDTH / 2, -CARD_HEIGHT / 2, 0),
+      new THREE.Vector3(-CARD_WIDTH / 2, CARD_HEIGHT / 2, 0),
+      new THREE.Vector3(CARD_WIDTH / 2, -CARD_HEIGHT / 2, 0),
+      new THREE.Vector3(CARD_WIDTH / 2, CARD_HEIGHT / 2, 0),
+    ].map((corner) => card.mesh.localToWorld(corner).project(this.camera));
+    const xs = corners.map((corner) => containerRect.left + (corner.x * 0.5 + 0.5) * containerRect.width);
+    const ys = corners.map((corner) => containerRect.top + (-corner.y * 0.5 + 0.5) * containerRect.height);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    return new DOMRect(left, top, Math.max(...xs) - left, Math.max(...ys) - top);
   }
   getScrubProgress() { return this.scrubP; }
   getCoverDistance() { return this.coverDistance; }
@@ -515,8 +523,8 @@ export class SphereScene {
         if (card) {
           const project = projects[card.slot.index];
           if (project) {
-            const screenPos = this.getCardScreenPosition(card.slot.index) || { x: e.clientX, y: e.clientY };
-            this.onCardClickCb(card.slot.index, screenPos);
+            const screenRect = this.getCardScreenPosition(card.slot.index) || new DOMRect(e.clientX, e.clientY, 0, 0);
+            this.onCardClickCb(card.slot.index, screenRect);
           }
         }
       }

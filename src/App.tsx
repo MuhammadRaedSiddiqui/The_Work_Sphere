@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SphereScene } from "./scene/SphereScene";
-import ExpandedPanel from "./components/ExpandedPanel";
+import ProjectPanel, { type ProjectPanelHandle } from "./components/ProjectPanel";
 import FallbackAbout from "./components/FallbackAbout";
 import { projects } from "./data/projects";
 import type { Project } from "./types";
@@ -27,13 +27,17 @@ export default function App() {
   const zoneLayerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SphereScene | null>(null);
   const stRef = useRef<ScrollTrigger | null>(null);
+  const projectPanelRef = useRef<ProjectPanelHandle>(null);
   const rafZoneRef = useRef<number>(0);
+  const panelNavigationAnimatingRef = useRef(false);
+  const wheelAccumRef = useRef(0);
+  const wheelAccumTimerRef = useRef<number | null>(null);
   const [hasScrolled, setHasScrolled] = useState(false);
   const hasScrolledRef = useRef(false);
 
   const filteredProjects = useMemo(() => projects.filter(Boolean) as Project[], []);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
-  const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
+  const [enterFrom, setEnterFrom] = useState<DOMRect | undefined>();
   const [viewMode, setViewMode] = useState<"inside" | "outside">("inside");
   const [scrubP, setScrubP] = useState(0);
 
@@ -121,13 +125,13 @@ export default function App() {
     if (vignetteRef.current) scene.setVignetteEl(vignetteRef.current);
     setViewMode(scene.getViewMode());
     scene.setOnViewModeChange((mode) => setViewMode(mode));
-    scene.setOnCardClick((slotIndex, screenPos) => {
+    scene.setOnCardClick((slotIndex, screenRect) => {
       if (filteredProjects.length === 0) return;
       const proj = projects[slotIndex];
       if (!proj) return;
       const fi = filteredProjects.findIndex((p) => p.id === proj.id);
       if (fi === -1) return;
-      setOrigin(screenPos);
+      setEnterFrom(screenRect);
       setExpandedIdx(fi);
       scene.setExpandedSlot(slotIndex);
     });
@@ -319,32 +323,62 @@ export default function App() {
     }
   }, [expandedIdx]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     const scene = sceneRef.current;
     setExpandedIdx(null);
-    window.setTimeout(() => setOrigin(null), 600);
+    window.setTimeout(() => setEnterFrom(undefined), 600);
     scene?.setExpandedSlot(null);
-  };
-  const handleNext = () => {
-    if (expandedIdx === null) return;
-    const next = Math.min(expandedIdx + 1, filteredProjects.length - 1);
-    if (next === expandedIdx) return;
-    setExpandedIdx(next);
-    const slot = slotForFiltered(next);
-    sceneRef.current?.setExpandedSlot(slot);
-    const pos = sceneRef.current?.getCardScreenPosition(slot);
-    if (pos) setOrigin(pos);
-  };
-  const handlePrev = () => {
-    if (expandedIdx === null) return;
-    const prev = Math.max(expandedIdx - 1, 0);
-    if (prev === expandedIdx) return;
-    setExpandedIdx(prev);
-    const slot = slotForFiltered(prev);
-    sceneRef.current?.setExpandedSlot(slot);
-    const pos = sceneRef.current?.getCardScreenPosition(slot);
-    if (pos) setOrigin(pos);
-  };
+  }, []);
+
+  const navigatePanel = useCallback((direction: 1 | -1) => {
+    if (expandedIdx === null || panelNavigationAnimatingRef.current) return;
+    const atBoundary = direction > 0 ? expandedIdx >= filteredProjects.length - 1 : expandedIdx <= 0;
+    const panel = projectPanelRef.current?.getPanelElement();
+
+    if (atBoundary) {
+      if (!panel) return;
+      panelNavigationAnimatingRef.current = true;
+      const offset = direction > 0 ? -18 : 18;
+      gsap.timeline({ onComplete: () => (panelNavigationAnimatingRef.current = false) })
+        .to(panel, { x: offset, duration: 0.14, ease: "power2.out" })
+        .to(panel, { x: 0, duration: 0.32, ease: "elastic.out(1, 0.5)" });
+      return;
+    }
+
+    panelNavigationAnimatingRef.current = true;
+    const nextIndex = expandedIdx + direction;
+    const exitOffset = direction > 0 ? -40 : 40;
+    const entranceOffset = direction > 0 ? 30 : -30;
+    const kick = direction > 0 ? -14 : 14;
+    const settle = () => {
+      setExpandedIdx(nextIndex);
+      sceneRef.current?.setExpandedSlot(slotForFiltered(nextIndex));
+      requestAnimationFrame(() => {
+        const nextPanel = projectPanelRef.current?.getPanelElement();
+        if (!nextPanel) { panelNavigationAnimatingRef.current = false; return; }
+        gsap.set(nextPanel, { x: entranceOffset });
+        gsap.to(nextPanel, {
+          x: 0,
+          duration: 0.5,
+          ease: "back.out(1.4)",
+          onComplete: () => (panelNavigationAnimatingRef.current = false),
+        });
+        const scroll = projectPanelRef.current?.getScrollElement();
+        if (scroll) scroll.scrollTop = 0;
+      });
+    };
+
+    if (!panel) {
+      settle();
+      return;
+    }
+    gsap.timeline({ onComplete: settle })
+      .to(panel, { x: kick, duration: 0.12, ease: "power2.in" })
+      .to(panel, { x: exitOffset, opacity: 0.85, duration: 0.18, ease: "power2.in" }, "-=0.04");
+  }, [expandedIdx, filteredProjects.length]);
+
+  const handleNext = useCallback(() => navigatePanel(1), [navigatePanel]);
+  const handlePrev = useCallback(() => navigatePanel(-1), [navigatePanel]);
 
   const expandedProject = expandedIdx !== null ? filteredProjects[expandedIdx] : null;
   const canvasBlur = expandedIdx !== null ? "blur(14px) saturate(0.9)" : "blur(0px)";
@@ -362,11 +396,56 @@ export default function App() {
       if (e.key === "Escape" && expandedIdx !== null) {
         e.preventDefault();
         handleClose();
+      } else if (expandedIdx !== null && (e.key === "ArrowDown" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        handleNext();
+      } else if (expandedIdx !== null && (e.key === "ArrowUp" || e.key === "ArrowLeft")) {
+        e.preventDefault();
+        handlePrev();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [expandedIdx]);
+  }, [expandedIdx, handleClose, handleNext, handlePrev]);
+
+  useEffect(() => {
+    if (expandedIdx === null) return;
+    const onWheel = (e: WheelEvent) => {
+      if (panelNavigationAnimatingRef.current) {
+        e.preventDefault();
+        return;
+      }
+      const scroll = projectPanelRef.current?.getScrollElement();
+      if (!scroll) return;
+      const atTop = scroll.scrollTop <= 1;
+      const atBottom = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 1;
+      const { deltaY } = e;
+
+      if ((deltaY < 0 && !atTop) || (deltaY > 0 && !atBottom)) {
+        wheelAccumRef.current = 0;
+        return;
+      }
+
+      wheelAccumRef.current += deltaY;
+      if (wheelAccumTimerRef.current) window.clearTimeout(wheelAccumTimerRef.current);
+      wheelAccumTimerRef.current = window.setTimeout(() => (wheelAccumRef.current = 0), 180);
+
+      const threshold = 55;
+      if (Math.abs(wheelAccumRef.current) < threshold) {
+        if (atTop || atBottom) e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      const direction: 1 | -1 = wheelAccumRef.current > 0 ? 1 : -1;
+      wheelAccumRef.current = 0;
+      navigatePanel(direction);
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      if (wheelAccumTimerRef.current) window.clearTimeout(wheelAccumTimerRef.current);
+    };
+  }, [expandedIdx, navigatePanel]);
 
   const onboardingHidden = hasScrolled || (!isFallback && scrubP > INTERACTION_LOCK_EPSILON) || expandedIdx !== null;
 
@@ -682,12 +761,10 @@ export default function App() {
       <div style={{ height: isFallback ? "0" : "40vh", background: "#000" }} />
 
       {expandedProject && expandedIdx !== null && (
-        <ExpandedPanel
+        <ProjectPanel
+          ref={projectPanelRef}
           project={expandedProject}
-          index={expandedIdx}
-          total={filteredProjects.length}
-          origin={origin}
-          allProjects={filteredProjects}
+          enterFrom={enterFrom}
           onClose={handleClose}
           onPrev={handlePrev}
           onNext={handleNext}

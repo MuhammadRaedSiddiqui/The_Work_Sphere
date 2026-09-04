@@ -1,26 +1,37 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useCallback, useState } from "react";
 import gsap from "gsap";
+import { projects } from "../data/projects";
 import type { Project } from "../types";
 
-type Props = {
+export type ProjectPanelProps = {
   project: Project;
-  index: number; // 0-based within filtered list
-  total: number;
-  origin: { x: number; y: number } | null; // card screen pos for FLIP
-  allProjects: Project[]; // filtered list for next teaser
   onClose: () => void;
-  onNext: () => void;
-  onPrev: () => void;
+  onNext?: () => void;
+  onPrev?: () => void;
+  showTeaser?: boolean;
+  enterFrom?: DOMRect;
 };
 
-export default function ExpandedPanel({ project, index, total, origin, allProjects, onClose, onNext, onPrev }: Props) {
+export type ProjectPanelHandle = {
+  getPanelElement: () => HTMLDivElement | null;
+  getScrollElement: () => HTMLDivElement | null;
+};
+
+const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function ProjectPanel({ project, onClose, onNext, onPrev: _onPrev, showTeaser = true, enterFrom }, ref) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const animatingRef = useRef(false);
-  const accumRef = useRef(0);
-  const accumTimerRef = useRef<number | null>(null);
   const [heroImgError, setHeroImgError] = useState(false);
+  const projectList = useMemo(() => projects.filter((item): item is Project => item !== null), []);
+  const projectIndex = projectList.findIndex((item) => item.id === project.id);
+  const total = projectList.length;
+  const nextProject = projectIndex >= 0 ? projectList[projectIndex + 1] : undefined;
+  const hasNext = Boolean(nextProject && onNext);
+  useImperativeHandle(ref, () => ({
+    getPanelElement: () => panelRef.current,
+    getScrollElement: () => scrollRef.current,
+  }), []);
   useEffect(() => setHeroImgError(false), [project.id, project.heroImage]);
 
   // Prefetch adjacent heroes on demand (§15: hero.jpg only on panel open, optionally adjacent §11)
@@ -30,10 +41,9 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
       img.decoding = "async";
       img.src = `/img/projects/${id}/hero.jpg`;
     };
-    const idx = allProjects.findIndex((p) => p.id === project.id);
-    if (idx > 0) prefetch(allProjects[idx - 1].id);
-    if (idx >= 0 && idx < allProjects.length - 1) prefetch(allProjects[idx + 1].id);
-  }, [project.id, allProjects]);
+    if (projectIndex > 0) prefetch(projectList[projectIndex - 1].id);
+    if (projectIndex >= 0 && projectIndex < projectList.length - 1) prefetch(projectList[projectIndex + 1].id);
+  }, [project.id, projectIndex, projectList]);
 
   // Entrance: re-center + blur beat then zoom to fullscreen with p-8 (§9)
   useEffect(() => {
@@ -47,44 +57,26 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
     const isMobile = vw < 768;
     const inset = isMobile ? 16 : 32; // p-8 desktop, p-4 mobile
 
-    // Start rect: card screen pos or center fallback. Approximate card screen size
-    // derived from world card 2.2×1.467 projected at ~7 units distance ~ small.
-    // We use a fixed 220×147 placeholder; the FLIP read is the position, not exact size.
-    const startW = 220;
-    const startH = 147;
-    const startX = origin ? origin.x - startW / 2 : vw / 2 - startW / 2;
-    const startY = origin ? origin.y - startH / 2 : vh / 2 - startH / 2;
+    // Start from the caller-provided source rect; without one, fade in at final size.
+    const startW = enterFrom?.width;
+    const startH = enterFrom?.height;
+    const startX = enterFrom?.left;
+    const startY = enterFrom?.top;
 
-    // Set initial FLIP state
-    gsap.set(panel, {
-      left: startX,
-      top: startY,
-      width: startW,
-      height: startH,
-      opacity: 0,
-      scale: 0.96,
-    });
+    if (startW && startH && startX !== undefined && startY !== undefined) {
+      gsap.set(panel, { left: startX, top: startY, width: startW, height: startH, opacity: 0, scale: 0.96 });
+    } else {
+      gsap.set(panel, { left: inset, top: inset, width: vw - inset * 2, height: vh - inset * 2, opacity: 0, scale: 0.96 });
+    }
     gsap.set(overlay, { backgroundColor: "rgba(10,10,10,0)" });
 
     const tl = gsap.timeline();
-    // Phase 1: re-center (card flies to center) + blur already on canvas
-    tl.to(panel, {
-      left: vw / 2 - startW / 2,
-      top: vh / 2 - startH / 2,
-      opacity: 1,
-      scale: 1,
-      duration: 0.38,
-      ease: "expo.out",
-    });
-    // Phase 2: zoom to fullscreen with p-8
-    tl.to(panel, {
-      left: inset,
-      top: inset,
-      width: vw - inset * 2,
-      height: vh - inset * 2,
-      duration: 0.52,
-      ease: "expo.out",
-    }, "-=0.08");
+    if (startW && startH) {
+      tl.to(panel, { left: vw / 2 - startW / 2, top: vh / 2 - startH / 2, opacity: 1, scale: 1, duration: 0.38, ease: "expo.out" });
+      tl.to(panel, { left: inset, top: inset, width: vw - inset * 2, height: vh - inset * 2, duration: 0.52, ease: "expo.out" }, "-=0.08");
+    } else {
+      tl.to(panel, { opacity: 1, scale: 1, duration: 0.3, ease: "expo.out" });
+    }
     tl.to(overlay, { backgroundColor: "rgba(10,10,10,0.32)", duration: 0.45 }, 0);
 
     // Content fade in after zoom lands
@@ -93,7 +85,7 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
     return () => {
       tl.kill();
     };
-  }, [origin]);
+  }, [enterFrom]);
 
   // Close animation reversed
   const animateClose = useCallback(
@@ -110,34 +102,22 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
       const isMobile = vw < 768;
       const inset = isMobile ? 16 : 32;
       // Reverse zoom: shrink back toward origin or center
-      const targetW = 220;
-      const targetH = 147;
-      const targetX = origin ? origin.x - targetW / 2 : vw / 2 - targetW / 2;
-      const targetY = origin ? origin.y - targetH / 2 : vw / 2 - targetH / 2;
+      const targetW = enterFrom?.width;
+      const targetH = enterFrom?.height;
+      const targetX = enterFrom?.left;
+      const targetY = enterFrom?.top;
 
       const tl = gsap.timeline({ onComplete: () => { animatingRef.current = false; cb(); } });
       if (scrollRef.current) tl.to(scrollRef.current, { opacity: 0, duration: 0.18 }, 0);
       tl.to(overlay, { backgroundColor: "rgba(10,10,10,0)", duration: 0.32 }, 0);
-      // Zoom back to center first, then to origin
-      tl.to(panel, {
-        left: inset,
-        top: inset,
-        width: vw - targetW,
-        // keep height full until shrink
-        duration: 0,
-      }, 0);
-      tl.to(panel, {
-        left: targetX,
-        top: targetY,
-        width: targetW,
-        height: targetH,
-        opacity: 0.2,
-        scale: 0.96,
-        duration: 0.42,
-        ease: "expo.in",
-      });
+      if (targetW && targetH && targetX !== undefined && targetY !== undefined) {
+        tl.to(panel, { left: inset, top: inset, width: vw - targetW, duration: 0 }, 0);
+        tl.to(panel, { left: targetX, top: targetY, width: targetW, height: targetH, opacity: 0.2, scale: 0.96, duration: 0.42, ease: "expo.in" });
+      } else {
+        tl.to(panel, { opacity: 0, scale: 0.96, duration: 0.32, ease: "expo.in" });
+      }
     },
-    [origin]
+    [enterFrom]
   );
 
   const handleClose = useCallback(() => {
@@ -145,129 +125,10 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
   }, [animateClose, onClose]);
 
   // Project-to-project transition with threshold + overshoot + rubber-band (§11)
-  const triggerNext = useCallback(() => {
-    if (animatingRef.current) return;
-    if (index >= total - 1) {
-      // Rubber-band at last (§11)
-      const panel = panelRef.current;
-      if (!panel) return;
-      animatingRef.current = true;
-      gsap.timeline({ onComplete: () => (animatingRef.current = false) })
-        .to(panel, { x: -18, duration: 0.14, ease: "power2.out" })
-        .to(panel, { x: 0, duration: 0.32, ease: "elastic.out(1, 0.5)" });
-      return;
-    }
-    animatingRef.current = true;
-    const panel = panelRef.current;
-    if (!panel) { onNext(); animatingRef.current = false; return; }
-    const tl = gsap.timeline({
-      onComplete: () => {
-        onNext();
-        // After React swaps project, do overshoot settle
-        requestAnimationFrame(() => {
-          const p = panelRef.current;
-          if (!p) { animatingRef.current = false; return; }
-          gsap.set(p, { x: 30 });
-          gsap.to(p, { x: 0, duration: 0.5, ease: "back.out(1.4)", onComplete: () => (animatingRef.current = false) });
-          if (scrollRef.current) scrollRef.current.scrollTop = 0;
-        });
-      },
-    });
-    tl.to(panel, { x: -14, duration: 0.12, ease: "power2.in" }).to(panel, { x: -40, opacity: 0.85, duration: 0.18, ease: "power2.in" }, "-=0.04");
-  }, [index, total, onNext]);
-
-  const triggerPrev = useCallback(() => {
-    if (animatingRef.current) return;
-    if (index <= 0) {
-      const panel = panelRef.current;
-      if (!panel) return;
-      animatingRef.current = true;
-      gsap.timeline({ onComplete: () => (animatingRef.current = false) })
-        .to(panel, { x: 18, duration: 0.14, ease: "power2.out" })
-        .to(panel, { x: 0, duration: 0.32, ease: "elastic.out(1, 0.5)" });
-      return;
-    }
-    animatingRef.current = true;
-    const panel = panelRef.current;
-    if (!panel) { onPrev(); animatingRef.current = false; return; }
-    const tl = gsap.timeline({
-      onComplete: () => {
-        onPrev();
-        requestAnimationFrame(() => {
-          const p = panelRef.current;
-          if (!p) { animatingRef.current = false; return; }
-          gsap.set(p, { x: -30 });
-          gsap.to(p, { x: 0, duration: 0.5, ease: "back.out(1.4)", onComplete: () => (animatingRef.current = false) });
-          if (scrollRef.current) scrollRef.current.scrollTop = 0;
-        });
-      },
-    });
-    tl.to(panel, { x: 14, duration: 0.12, ease: "power2.in" }).to(panel, { x: 40, opacity: 0.85, duration: 0.18, ease: "power2.in" }, "-=0.04");
-  }, [index, total, onPrev]);
-
-  // Wheel handler with threshold + scroll decoupling (§11)
-  const onWheel = useCallback(
-    (e: React.WheelEvent) => {
-      if (animatingRef.current) {
-        e.preventDefault();
-        return;
-      }
-      const el = scrollRef.current;
-      if (!el) return;
-      const atTop = el.scrollTop <= 1;
-      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-      const delta = e.deltaY;
-
-      // If inner content can still scroll in this direction, let it scroll
-      if ((delta < 0 && !atTop) || (delta > 0 && !atBottom)) {
-        // Reset carousel accumulator when scrolling content
-        accumRef.current = 0;
-        return;
-      }
-
-      // Accumulate for carousel navigation
-      accumRef.current += delta;
-      if (accumTimerRef.current) window.clearTimeout(accumTimerRef.current);
-      accumTimerRef.current = window.setTimeout(() => (accumRef.current = 0), 180);
-
-      const THRESHOLD = 55;
-      if (Math.abs(accumRef.current) < THRESHOLD) {
-        // Prevent page scroll while we are accumulating at the edge
-        if (atTop || atBottom) e.preventDefault();
-        return;
-      }
-      e.preventDefault();
-      const dir = accumRef.current > 0 ? 1 : -1;
-      accumRef.current = 0;
-      if (dir > 0) triggerNext();
-      else triggerPrev();
-    },
-    [triggerNext, triggerPrev]
-  );
-
-  // Keyboard: Escape close, arrow navigation
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        handleClose();
-      } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-        if (!animatingRef.current) { e.preventDefault(); triggerNext(); }
-      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-        if (!animatingRef.current) { e.preventDefault(); triggerPrev(); }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [handleClose, triggerNext, triggerPrev]);
-
-  const nextProject = allProjects[(index + 1) % total];
-  const hasNext = index < total - 1;
 
   return (
     <div
       ref={overlayRef}
-      onWheel={onWheel}
       style={{
         position: "fixed",
         inset: 0,
@@ -318,7 +179,7 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
           }}
         >
           <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.45)" }}>
-            {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+            {String(projectIndex + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
           </span>
           <button
             onClick={handleClose}
@@ -468,8 +329,9 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
           </div>
 
           {/* Next-project teaser §10.8 — affordance for scroll-to-next */}
+          {showTeaser && onNext && (
           <div
-            onClick={() => { if (hasNext) triggerNext(); }}
+            onClick={() => { if (hasNext) onNext?.(); }}
             style={{
               marginTop: 28,
               marginLeft: isMobile() ? 18 : 28,
@@ -486,26 +348,29 @@ export default function ExpandedPanel({ project, index, total, origin, allProjec
               opacity: hasNext ? 1 : 0.55,
             }}
           >
-            <div style={{ width: 56, height: 36, borderRadius: 8, background: hasNext ? `hsl(${hueFor(nextProject.id)},28%,16%)` : "rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>
-              {hasNext ? nextProject.title.slice(0, 2).toUpperCase() : "—"}
+            <div style={{ width: 56, height: 36, borderRadius: 8, background: hasNext ? `hsl(${hueFor(nextProject!.id)},28%,16%)` : "rgba(255,255,255,0.06)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>
+              {hasNext ? nextProject!.title.slice(0, 2).toUpperCase() : "—"}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: "system-ui, sans-serif", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>
                 {hasNext ? "Next project" : "End of projects"}
               </div>
               <div style={{ fontFamily: "system-ui, sans-serif", fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.82)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {hasNext ? nextProject.title : "You’ve reached the end — scroll up or close"}
+                {hasNext ? nextProject!.title : "You’ve reached the end — scroll up or close"}
               </div>
             </div>
             {hasNext && <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 16 }}>→</span>}
           </div>
+          )}
         </div>
       </div>
 
       <style>{`.expand-scroll::-webkit-scrollbar{display:none}`}</style>
     </div>
   );
-}
+});
+
+export default ProjectPanel;
 
 function isMobile() {
   return typeof window !== "undefined" ? window.innerWidth < 768 : false;
