@@ -548,19 +548,7 @@ export class SphereScene {
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
-        const offscreen = !entry.isIntersecting;
-        // Only pause when settled (pin-end already scrolled past) — during flight we keep rendering even if clipped by cover crop
-        if (offscreen && this.scrubP >= REVEAL_END) {
-          if (!this.pausedOffscreen) {
-            this.pausedOffscreen = true;
-            // keep the rAF loop but skip render — cheaper than fully tearing down
-          }
-        } else {
-          if (this.pausedOffscreen) {
-            this.pausedOffscreen = false;
-            this.clock.getDelta(); // reset delta so we don't jump
-          }
-        }
+        this.setOffscreenPaused(!entry.isIntersecting);
       },
       { threshold: 0 }
     );
@@ -569,10 +557,33 @@ export class SphereScene {
     (this as unknown as { _io: IntersectionObserver })._io = io;
   }
 
-  private animate = () => {
-    if (this.disposed) return;
+  private setOffscreenPaused(paused: boolean) {
+    if (this.pausedOffscreen === paused || this.disposed) return;
+    this.pausedOffscreen = paused;
+    if (paused) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+      return;
+    }
+
+    // Recompute from the live scrub/camera state before drawing again. Resetting the
+    // clock prevents the time spent off-screen from becoming one large simulation step.
+    this.clock.getDelta();
+    this.updateFrame(0);
+    this.renderer.render(this.scene, this.camera);
     this.rafId = requestAnimationFrame(this.animate);
+  }
+
+  private animate = () => {
+    this.rafId = 0;
+    if (this.disposed || this.pausedOffscreen) return;
     const dt = Math.min(this.clock.getDelta(), 0.05);
+    this.updateFrame(dt);
+    this.renderer.render(this.scene, this.camera);
+    this.rafId = requestAnimationFrame(this.animate);
+  };
+
+  private updateFrame(dt: number) {
     this.elapsed += dt;
 
     const pForToggleGate = this.scrubP;
@@ -636,10 +647,7 @@ export class SphereScene {
       const vOpacity = THREE.MathUtils.clamp(1 - flightT * 0.95, 0, 1);
       this.vignetteEl.style.opacity = String(vOpacity);
     }
-
-    if (this.pausedOffscreen) return;
-    this.renderer.render(this.scene, this.camera);
-  };
+  }
 
   private updateCards(frameRot: THREE.Quaternion, flightT: number, scrubP: number, toggleT: number) {
     // Beats §6 (v2): flight 0→0.62 · thumb fade 0.62→0.74 · stroke boost 0.74→0.78 hold→0.82 · reveal 0.82→0.94 · settled 0.94→1.0
