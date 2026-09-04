@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { BACKGROUND_COLOR, ARRIVAL_END, BLUEPRINT_END, REVEAL_END, FLIGHT_END, PHOTO_INDICES, photoSlotUV, ZONES } from "../constants";
+import { BACKGROUND_COLOR, ARRIVAL_END, BLUEPRINT_END, REVEAL_END, FLIGHT_END, PHOTO_INDICES, photoSliceUV, ZONES } from "../constants";
 import {
   cardSlots,
   buildConnectorPairs,
@@ -30,25 +30,11 @@ const INSIDE_CAM_Z = 0.01;
 const FOG_INSIDE_NEAR = SPHERE_RADIUS * 1.6;
 const FOG_INSIDE_FAR = SPHERE_RADIUS * 3.2;
 
-// Photo mosaic — one shared texture with per-card UV sub-rects and 3.5% inset bezel (§4, §5 editorial).
-// Editorial column is 2×4 (was 2×3), portrait desaturated flat grey (static-asset
-// recommendation: pre-process to PNG; runtime canvas desaturation is the live fallback).
-// Seams are the bezel (UV inset), not spacing gaps; spacing → 0 at p=1.
-// §4 mechanism decision: this build retains the bezel mosaic (option a). If a face
-// visibly fractures across bezel seams at the new 3:4 column aspect in a real build,
-// switch this zone to a single unslit texture for the portrait specifically (no bezel,
-// continuous UVs across the 8 cards) while keeping the mosaic mechanism for other
-// photo content later — do not ship a fractured face. Check at v≈1.5 and v≈3.0.
-// Two equivalent implementations:
-//   (A) geometry UV remap (used here) — clone geometry and lerp UVs to inset sub-rect
-//   (B) material offset/repeat — keep geometry shared, clone texture per card:
-//       const INSET = 0.035;
-//       material.map = sharedPhotoTexture.clone();
-//       material.map.offset.set(localCol/2 + INSET, 1 - (localRow+1)/4 + INSET);
-//       material.map.repeat.set(1/2 - 2*INSET, 1/4 - 2*INSET);
-// Both produce identical bezel; (A) avoids per-material texture clone overhead.
-// Uniform INSET 0.035 in UV space (~3.5% of card edge) — not world-proportional.
-const PHOTO_INSET = 0.035;
+// Photo — SINGLE UNSLICED image spanning the zone's aggregate rect (§4 final).
+// No per-card UV inset, no bezel, no tiled seams. Each of the 8 photo cards
+// maps a continuous sub-rect of the shared BW texture with no inset. Spacing →0 at p=1
+// makes the 8 cards read as one seamless portrait, ~1/3 zoned width, full height.
+// Do not reintroduce live filters or mosaic — the file itself is the BW master.
 
 type Card = {
   slot: (typeof cardSlots)[number];
@@ -276,31 +262,17 @@ export class SphereScene {
       let geometry: THREE.PlaneGeometry = baseGeometry;
 
       if (isPhoto) {
-        // Clone geometry and bake UV sub-rect with uniform 3.5% inset bezel — computed once at build, not per-frame (§4, §16, §5 editorial 2×4)
-        // Equivalent to per-card material offset/repeat (see top-of-file comment for snippet):
-        //   const INSET = 0.035; material.map.offset.set(localCol/2+INSET, 1-(localRow+1)/4+INSET);
-        //   material.map.repeat.set(1/2-2*INSET, 1/4-2*INSET);
-        // Geometry UV path avoids extra texture clones while producing identical bezel seams.
-        // If face fractures visibly at editorial aspect, replace this with a single unslit
-        // continuous UV across the 8-card zone (no inset) for the portrait only.
+        // Single unsliced portrait — continuous sub-rect per card, no inset, no bezel (§4 final).
+        // Computed once at build, not per-frame. The 8 cards together read as one seamless
+        // BW image bleeding to the top/right/bottom of its zone with zero border.
         geometry = baseGeometry.clone() as THREE.PlaneGeometry;
         const uvAttr = geometry.getAttribute("uv") as THREE.BufferAttribute;
-        const slotUV = photoSlotUV(slot.index)!;
-        const uSlice = 1 / 2;
-        const vSlice = 1 / 4;
-        const u0 = slotUV.colInZone * uSlice;
-        const u1 = u0 + uSlice;
-        const v1 = 1 - slotUV.rowInZone * vSlice;
-        const v0 = v1 - vSlice;
-        const iu0 = u0 + PHOTO_INSET;
-        const iu1 = u1 - PHOTO_INSET;
-        const iv0 = v0 + PHOTO_INSET;
-        const iv1 = v1 - PHOTO_INSET;
+        const slice = photoSliceUV(slot.index)!;
         for (let i = 0; i < uvAttr.count; i++) {
           const u = uvAttr.getX(i);
           const v = uvAttr.getY(i);
-          const nu = THREE.MathUtils.lerp(iu0, iu1, u);
-          const nv = THREE.MathUtils.lerp(iv0, iv1, v);
+          const nu = THREE.MathUtils.lerp(slice.u0, slice.u1, u);
+          const nv = THREE.MathUtils.lerp(slice.v0, slice.v1, v);
           uvAttr.setXY(i, nu, nv);
         }
         uvAttr.needsUpdate = true;

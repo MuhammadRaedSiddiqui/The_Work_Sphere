@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from "react";
+import { PHOTO_ALT, PHOTO_FINAL_SRC } from "../constants";
 
 /**
- * Fallback About — Phase 6 (§15) + Phase 7 polishing + editorial v2.
- * When any gate fails we never create the pin/ScrollTrigger. Hero keeps its
- * natural dvh height and this conventional layout is shown instead of the
- * pinned wall. Content is the same as the WebGL wall — eyebrow, headline
- * (dominant with dimmed trailing word), one-liner bio, tagline, two buttons —
- * restyled with normal CSS rather than projected coordinates. Photo is a single
- * normal image, not a 2×4 mosaic, desaturated flat grey (static-asset
- * recommendation: pre-process to PNG; runtime CSS grayscale is the live fallback).
- * Layout mirrors the wall: desktop text left / photo right (editorial §5), mobile
- * single-column photo first (top). Same dark theme.
+ * Fallback About — closing-pass rebuild (spec §15 final).
+ * Mirrors the primary WebGL wall exactly: photo right, text left desktop;
+ * single-column photo first (top) on mobile. Same source content as the wall
+ * (one content source, two layouts — this is a CSS restyle, not new markup).
+ * Includes eyebrow "01 — THE PRACTICE" top left, no tag line. Contact is small
+ * underlined text beneath the bio. All zone roots are padding:0, borderRadius:0,
+ * flush with no container chrome. Photo is single normal BW PNG, not mosaic,
+ * used as PNG, never converted to JPG, with descriptive alt text.
  */
 export default function FallbackAbout() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [photoOk, setPhotoOk] = useState(true);
 
-  // Render the same desaturated studio portrait as a single image — fallback when real photo fails.
-  // Canvas fallback draws a portrait 3:4 placeholder (matches 2×4 column aspect 0.75).
   useEffect(() => {
     if (photoOk) return;
     const c = canvasRef.current;
@@ -26,147 +23,178 @@ export default function FallbackAbout() {
     if (!ctx) return;
     const w = 900, h = 1200;
     c.width = w; c.height = h;
-    const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#2b2e48");
-    g.addColorStop(0.45, "#4a5a78");
-    g.addColorStop(1, "#1a1d2e");
-    ctx.fillStyle = g;
+    ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
-    ctx.beginPath(); ctx.ellipse(w/2, h/2, 220, 300, 0, 0, Math.PI * 2); ctx.fill();
-    // Desaturate hint
-    ctx.filter = "grayscale(1)";
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.font = "600 24px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,60,60,0.95)";
+    ctx.font = "700 16px system-ui, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("STUDIO PORTRAIT", w/2, h/2 + 10);
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.font = "500 12px system-ui, sans-serif";
-    ctx.fillText("photo · fallback single image · 3:4 desaturated", w/2, h/2 + 35);
+    ctx.fillText("PORTRAIT LOAD FAILED", w / 2, h / 2 - 8);
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.font = "500 11px system-ui, sans-serif";
+    ctx.fillText("about-portrait.png", w / 2, h / 2 + 12);
+    ctx.strokeStyle = "rgba(255,60,60,0.3)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(12, 12, w - 24, h - 24);
   }, [photoOk]);
 
   return (
     <section
       aria-label="About"
       style={{
-        background: "#0A0A0A",
+        background: "#000",
         color: "rgba(255,255,255,0.9)",
-        padding: "56px 20px 64px",
+        padding: 0,
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "stretch",
       }}
     >
       <style>{`
-        .fb-outer { max-width: 1100px; margin: 0 auto; }
-        .fb-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 36px; align-items: start; }
+        .fb-outer { max-width: none; width: 100%; margin: 0; padding: 0; }
+        .fb-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; align-items: stretch; min-height: 100vh; }
         @media (max-width: 760px) {
-          .fb-grid { grid-template-columns: 1fr; }
-          .fb-photo { order: -1; }
-          .fb-text { order: 0; }
+          .fb-grid { grid-template-columns: 1fr; min-height: auto; }
+          .fb-photo { order: -1; min-height: 60vh; }
+          .fb-text { order: 0; padding: 24px 20px !important; }
         }
         .fb-photo {
-          border-radius: 10px;
+          padding: 0;
+          border-radius: 0;
           overflow: hidden;
-          background: #11131a;
-          border: 1px solid rgba(255,255,255,0.08);
+          background: transparent;
           line-height: 0;
+          min-height: 100vh;
         }
-        .fb-photo canvas, .fb-photo img { width: 100%; height: auto; display: block; }
-        .fb-photo img { filter: grayscale(1) contrast(1.08) brightness(1.03); }
+        .fb-photo canvas, .fb-photo img {
+          width: 100%;
+          height: 100%;
+          min-height: 100vh;
+          display: block;
+          padding: 0;
+          border-radius: 0;
+          object-fit: cover;
+        }
+        .fb-text {
+          padding: 48px 32px 48px 40px;
+          border-radius: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
       `}</style>
 
       <div className="fb-outer">
         <div className="fb-grid">
-          {/* Text stack — same content as the pinned wall (§5), now LEFT per editorial mirror */}
-          <div className="fb-text" style={{ minWidth: 0, paddingTop: 4 }}>
+          {/* Text stack — same content as the WebGL wall, left per spec §5 mirror */}
+          <div className="fb-text" style={{ minWidth: 0 }}>
             <div
               style={{
                 color: "rgba(255,255,255,0.52)",
                 fontFamily: "system-ui, sans-serif",
-                fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase",
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.14em",
+                marginLeft: "2.2rem",
+                textTransform: "uppercase",
+                marginBottom: 12,
               }}
             >
               01 — THE PRACTICE
             </div>
             <h2
               style={{
-                margin: "12px 0 0",
+                margin: 0,
                 color: "rgba(255,255,255,0.96)",
                 fontFamily: "system-ui, sans-serif",
-                fontSize: "clamp(28px, 4vw, 42px)",
-                fontWeight: 560, lineHeight: 1.02, letterSpacing: "-0.04em",
+                fontSize: "clamp(56px, 6.5vw, 84px)",
+                fontWeight: 900,
+                lineHeight: 0.92,
+                letterSpacing: "-0.04em",
                 textWrap: "balance",
               }}
             >
-              Engineering at the edge of AI and{" "}
-              <span style={{ color: "rgba(255,255,255,0.28)", fontWeight: 500 }}>automation.</span>
+              <span style={{ display: "block" }}>Engineering</span>
+              <span style={{ display: "block" }}>at the edge of</span>
+              <span style={{ display: "block" }}>AI and</span>
+              <span style={{ display: "inline-block", background: "linear-gradient(90deg, #8A8A8A 0%, #D4D4D4 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent", fontWeight: 900 }}>Automation.</span>
             </h2>
             <p
               style={{
-                margin: "14px 0 0",
+                margin: "2px 0 0",
                 color: "rgba(255,255,255,0.58)",
                 fontFamily: "system-ui, sans-serif",
-                fontSize: 14, lineHeight: 1.55, letterSpacing: "0.01em",
+                fontSize: 17,
+                lineHeight: 1.35,
+                letterSpacing: "0.01em",
               }}
             >
-              I build autonomous agents and scalable platforms that replace manual overhead with intelligent code.
+              I build autonomous agents and scalable platforms<br />that replace manual overhead with intelligent code.
             </p>
-            <div
-              style={{
-                marginTop: 16,
-                color: "rgba(255,255,255,0.38)",
-                fontFamily: "system-ui, sans-serif",
-                fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase",
-              }}
-            >
-              AI AGENTS · REACT · FASTAPI · SYSTEMS
-            </div>
-            {/* C1/C2 placement flagged OPEN in spec §5: quiet text beneath bio vs header nav.
-                Fallback currently keeps pill buttons to preserve discoverability; if spec resolves
-                to quiet text, restyle this row to small text links; if to header nav, hide here. */}
-            <div style={{ marginTop: 22, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ marginTop: 16, display: "flex", gap: 18 }}>
               <a
                 href="mailto:raedsiddiquie4@gmail.com"
                 style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  height: 36, padding: "0 18px", borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "rgba(255,255,255,0.92)",
-                  fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 600, letterSpacing: "0.02em",
-                  textDecoration: "none",
+                  color: "rgba(255,255,255,0.72)",
+                  fontFamily: "system-ui, sans-serif",
+                  fontSize: 16,
+                  fontWeight: 500,
+                  letterSpacing: "0.02em",
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3,
+                  textDecorationThickness: 1,
+                  textDecorationColor: "rgba(255,255,255,0.35)",
                 }}
               >
                 Email
               </a>
               <a
-                href="#work"
+                href="https://www.linkedin.com/in/raedsiddiquie/"
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  height: 36, padding: "0 18px", borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.94)",
-                  color: "#0A0A0A",
-                  fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.02em",
-                  textDecoration: "none",
+                  color: "rgba(255,255,255,0.72)",
+                  fontFamily: "system-ui, sans-serif",
+                  fontSize: 16,
+                  fontWeight: 500,
+                  letterSpacing: "0.02em",
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3,
+                  textDecorationThickness: 1,
+                  textDecorationColor: "rgba(255,255,255,0.35)",
                 }}
               >
-                Index
+                Resume
               </a>
             </div>
           </div>
 
-          {/* Photo — single normal image (not mosaic), now RIGHT per editorial mirror (text left) */}
+          {/* Photo — single normal BW PNG, right per spec §5 mirror, no border/radius */}
           <div className="fb-photo">
             {photoOk ? (
               <img
-                src="/img/about-featured.jpg"
-                alt="Portrait of Raed Siddiqui — studio portrait in flat grey, looking directly at camera"
+                src={PHOTO_FINAL_SRC}
+                alt={PHOTO_ALT}
                 loading="lazy"
                 decoding="async"
                 onError={() => setPhotoOk(false)}
-                style={{ width: "100%", height: "auto", display: "block", aspectRatio: "3 / 4", objectFit: "cover" }}
+                style={{
+                  width: "100%",
+                  height: "auto",
+                  display: "block",
+                  padding: 0,
+                  borderRadius: 0,
+                  objectFit: "cover",
+                  // File is PNG BW — used as PNG, never converted to JPG. No live filter.
+                }}
               />
             ) : (
-              <canvas ref={canvasRef} width={900} height={1200} aria-label="Portrait of Raed Siddiqui — studio portrait placeholder" />
+              <canvas
+                ref={canvasRef}
+                width={900}
+                height={1200}
+                aria-label={PHOTO_ALT}
+                style={{ padding: 0, borderRadius: 0 }}
+              />
             )}
           </div>
         </div>

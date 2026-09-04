@@ -29,23 +29,18 @@ export default function App() {
   const [viewMode, setViewMode] = useState<"inside" | "outside">("inside");
   const [scrubP, setScrubP] = useState(0);
 
-  // ---- Phase 6 gates ---------------------------------------------------
-  // Any one failing → fallback: pin is never created (§7, §15).
+  // ---- Gates — closing-pass final: v ∈ (1.65, 2.61) for δ≈0.3 ----
   const [isFallback, setIsFallback] = useState<boolean>(() => {
     try { return shouldUseFallback(); } catch { return false; }
   });
 
   useEffect(() => {
-    // Evaluate on debounced resize / orientationchange / reduced-motion change.
-    // A flip reinitializes at progress 0: scroll to top and flip isFallback.
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
     const checkAndFlip = () => {
       const next = shouldUseFallback();
       setIsFallback((prev) => {
         if (next !== prev) {
-          // Reinitialize at progress 0 — kill the pin spacer by scrolling to top
-          // before the gated effect re-creates the scene.
           try { window.scrollTo({ top: 0, behavior: "auto" }); } catch { window.scrollTo(0, 0); }
           setScrubP(0);
           hasScrolledRef.current = false;
@@ -61,14 +56,12 @@ export default function App() {
     };
 
     const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
-    // Newer browsers support addEventListener on MediaQueryList; fall back to addListener.
     const onMqlChange = () => checkAndFlip();
     try { mql.addEventListener("change", onMqlChange); }
     catch { (mql as unknown as { addListener: (cb: () => void) => void }).addListener(onMqlChange); }
 
     window.addEventListener("resize", debounced);
     window.addEventListener("orientationchange", debounced);
-    // Also poll connection/memory changes where supported — they can flip the tier gate.
     const conn = (navigator as unknown as { connection?: { addEventListener?: (t: string, cb: () => void) => void } }).connection;
     if (conn?.addEventListener) conn.addEventListener("change", debounced);
 
@@ -89,9 +82,6 @@ export default function App() {
     return projects.findIndex((x) => x?.id === p.id);
   };
 
-  // Phase 7: dynamic viewport unit for iOS Safari URL-bar (visualViewport)
-  // Keeps --vh in sync so 100dvh fallback works, but trigger height stays
-  // 100vh for ScrollTrigger stability (pin distance = 400% = 4× viewport).
   useEffect(() => {
     const setVh = () => {
       const vv = (window as unknown as { visualViewport?: VisualViewport }).visualViewport;
@@ -134,8 +124,6 @@ export default function App() {
       scene.setExpandedSlot(slotIndex);
     });
 
-    // Phase 7: thumbnail preload on scroll intent — fire once on first scroll
-    // Do not load high-res thumbs immediately; LQIP stays through flight with no pop on desktop.
     let scrollIntentFired = false;
     const fireScrollIntent = () => {
       if (scrollIntentFired) return;
@@ -146,22 +134,14 @@ export default function App() {
     const onFirstTouch = () => fireScrollIntent();
     window.addEventListener("wheel", onFirstWheel, { passive: true, once: true });
     window.addEventListener("touchmove", onFirstTouch, { passive: true, once: true });
-    // Also fire if ScrollTrigger progress becomes >0 (covers smooth scroll / trackpad)
-    // handled in onUpdate below.
 
-    // Phase 7: A/B scrub detection — hoisted so cleanup can remove it
     let detectedScrub: number | null = null;
     let detectScrubFromDelta: ((e: WheelEvent) => void) | null = null;
 
-    // Gate the ScrollTrigger construction itself (§15) — no pin spacer when fallback.
     let st: ScrollTrigger | null = null;
     let onRefresh: (() => void) | null = null;
 
     if (!isFallback) {
-      // Pin distance ≈4× viewport (spec §2). Use 400% of trigger height (100vh)
-      // so it automatically tracks dvh/--vh without computing absolute px.
-      // iOS URL-bar changes are handled via refresh on visualViewport, not via
-      // swapping the end string (swapping end after creation breaks scrub).
       detectScrubFromDelta = (e: WheelEvent) => {
         if (detectedScrub !== null) return;
         const abs = Math.abs(e.deltaY);
@@ -169,9 +149,6 @@ export default function App() {
         const isWheelMouse = abs >= 80;
         if (isTrackpad || isWheelMouse) {
           detectedScrub = isWheelMouse ? 0.85 : 0.6;
-          // Note: mutating st.vars.scrub after creation is unreliable; the
-          // detection is kept for logging/A-B insight, but scrub stays at 0.6
-          // which tests equally well on trackpad and wheel.
           if (detectScrubFromDelta) window.removeEventListener("wheel", detectScrubFromDelta as EventListener);
         }
       };
@@ -184,16 +161,6 @@ export default function App() {
         pin: true,
         scrub: 0.6,
         anticipatePin: 1,
-        // Progress budget (v2, §6) — single scrub drives all beats:
-        //   Flight (position/rotation/spacing lerp) 0 → 0.62
-        //   Thumbnail fade to black                 0.62 → 0.74
-        //   Edge-stroke boost to 0.9                0.74 → 0.78 (holds to 0.82 blueprint)
-        //   Reveal (strokes→0, mosaic+text in)      0.82 → 0.94
-        //   Settled buffer (no visual change)       0.94 → 1.0
-        // TODO — GSAP timeline (when introduced): map these breakpoints to keyframes on a
-        // single declarative timeline scrubbed by ScrollTrigger (spec §16). Animate driver
-        // scalars only; one rAF reads them and applies per-card math. Keep continuous props
-        // linear; arrival-fade and stroke-boost are the only authored beats.
         onUpdate: (self) => {
           const p = self.progress;
           if (p > 0.005 && !hasScrolledRef.current) {
@@ -218,20 +185,17 @@ export default function App() {
 
       onRefresh = () => scene.setScrubProgress(st!.progress);
       ScrollTrigger.addEventListener("refresh", onRefresh);
-      // Phase 7: visualViewport resize must refresh ScrollTrigger (iOS URL-bar)
       const vv = (window as unknown as { visualViewport?: VisualViewport }).visualViewport;
       if (vv) {
         const vvRefresh = () => ScrollTrigger.refresh();
         vv.addEventListener("resize", vvRefresh);
         vv.addEventListener("scroll", vvRefresh);
-        // Store cleanup on st for dispose below
         (st as unknown as { _vvCleanup?: () => void })._vvCleanup = () => {
           vv.removeEventListener("resize", vvRefresh);
           vv.removeEventListener("scroll", vvRefresh);
         };
       }
     } else {
-      // Fallback: hero keeps its natural height, no scrub. Keep sphere at p=0.
       scene.setScrubProgress(0);
       setScrubP(0);
       if (heroHeadlineRef.current) {
@@ -240,75 +204,73 @@ export default function App() {
         heroHeadlineRef.current.style.pointerEvents = "auto";
       }
       stRef.current = null;
-      // Ensure no stale pin spacers from a previous non-fallback init.
       ScrollTrigger.refresh();
     }
 
-    // Zone HTML positioning: project each zone's rect every frame so overlay stays locked to wall
-    // Editorial (§5): P is the right-column portrait (desaturated, 2×4), H dominates left spanning rows 2–3.
-    // T / C1 / C2 are intentionally UNMAPPED on the wall (spec §5 open decisions) — they
-    // have no projected rects here; surfacing that as open rather than guessing placement.
-    // In fallback this loop still runs but exits early (p<0.74) — negligible cost; pause via opacity anyway.
+    // Zone HTML positioning — closing-pass final (spec §5, §16)
+    // Three zones: P (photo, WebGL single unsliced, no HTML), H (headline, 4 lines heaviest weight),
+    // BC (bio+contact, small underlined links beneath bio). No E, no T.
+    // H and BC use narrowly-scoped overflow:visible with δ≈0.3 bleed beyond single-row nominal
+    // to carry 4 lines + 2 bio lines + contact. All zone roots are padding:0, borderRadius:0,
+    // flush to projected cell rect. Photo bleeds to top/right/bottom with no border.
     const updateZones = () => {
       rafZoneRef.current = requestAnimationFrame(updateZones);
       const p = scene.getScrubProgress();
       const layer = zoneLayerRef.current;
       if (!layer) return;
-      // Only show zone layer after blueprint → through reveal and settled; hidden during flight
-      // HTML text fades in 0.82–0.94 (§6 State 5), but we keep the layer mounted and control opacity
       const revealT = Math.max(0, Math.min(1, (p - 0.82) / (0.94 - 0.82)));
       const layerOpacity = p < 0.82 ? 0 : revealT;
       layer.style.opacity = String(layerOpacity);
       layer.style.pointerEvents = p >= 0.82 ? "auto" : "none";
       if (p < 0.74 || isFallback) return;
-      const keys: (keyof typeof ZONES)[] = ["E", "H", "B"];
+      // Only H and BC have HTML overlays; P is pure WebGL photo texture
+      // H is single-row at row 1, BC nominally at row 4 — the visual gap is rAF-positioned to 2px
+      let hRect: { left: number; top: number; width: number } | null = null;
+      let hScaled = 0;
+      const keys: (keyof typeof ZONES)[] = ["H", "BC"];
       for (const k of keys) {
         const el = layer.querySelector(`[data-zone="${k}"]`) as HTMLElement | null;
         if (!el) continue;
         const rect = scene.getZoneScreenRect(k);
         if (!rect) continue;
-        el.style.left = `${rect.left}px`;
-        el.style.top = `${rect.top}px`;
-        el.style.width = `${rect.width}px`;
-        el.style.height = `${rect.height}px`;
-        el.style.maxWidth = `${rect.width}px`;
-        el.style.maxHeight = `${rect.height}px`;
-        // Hard-constrain both axes + line-height from projected row height (§16)
-        // Editorial: H spans 2 rows, so rowH is half its height; B is 1 row.
-        // Narrowly-scoped bleed exception (option b) NOT used — this build uses option (a)
-        // so no overflow:visible; if bleed were chosen, add it only to H with capped δ.
         if (k === "H") {
-          // Headline dominates — 2-row zone, lineHeight from half-height (per row) to avoid seam strikethrough
-          const rowH = rect.height / 2;
-          el.style.lineHeight = `${Math.max(18, rowH * 0.95)}px`;
-          // Re-run §16 collision check at gate edges v≈1.5 / 3.0: with strict contain, H (rows2–3 cols1–4)
-          // and B (row4) and P (cols5–6) remain inside outer ring buffer (1 row/col), verified by projection.
-        } else if (k !== "B") {
-          const rowH = rect.height;
-          el.style.lineHeight = `${Math.max(14, rowH * 0.62)}px`;
-        } else {
-          const rowH = rect.height;
-          el.style.lineHeight = `${Math.max(14, rowH * 0.62)}px`;
-        }
-        // Bio legibility across safe band 1.5–3.0: scale font-size with zone width
-        // so the one-liner stays within the 4-col zone without overflow (§16).
-        if (k === "B") {
-          // Zone B is 4 cols wide; at safe-band edges its projected width varies ~1.6×
-          // Scale 11–15px clamp based on width so desktop narrow (1.5) doesn't clip and ultrawide doesn't look loose.
+          // Flush to projected cell rect — zero padding/radius (§4, §16)
+          el.style.left = `${rect.left}px`;
+          // Lift the complete About stack to retain the contact links within the viewport.
+          el.style.top = `${rect.top - 40}px`;
+          el.style.width = `${rect.width}px`;
+          el.style.height = `${rect.height}px`;
+          el.style.padding = "0";
+          el.style.borderRadius = "0";
+          el.style.overflow = "visible";
           const w = rect.width;
-          const scaled = Math.max(11, Math.min(14, w * 0.032));
+          const scaled = Math.max(56, Math.min(84, w * 0.145));
+          hScaled = scaled;
+          hRect = { left: rect.left, top: rect.top - 40, width: rect.width };
           el.style.fontSize = `${scaled}px`;
-          el.style.whiteSpace = "nowrap";
-          el.style.overflow = "hidden";
-          el.style.textOverflow = "ellipsis";
-        }
-        if (k === "H") {
+          el.style.lineHeight = "0.92";
+          el.style.fontWeight = "900";
+        } else if (k === "BC") {
+          // Place BC 2px below H's visual bottom, not at its own row-4 rect — this is the 2px you asked for
           const w = rect.width;
-          // Editorial headline dominates vs bio/tags (§5): ~32px/500 at mockup scale.
-          // 2-row, 4-col zone is ~60% text column; scale larger than before (18–28 → 28–44)
-          // but keep hard-constrained: clamped so it never bleeds into P (col5) or B (row4) at v≈1.5/3.0.
-          const scaled = Math.max(26, Math.min(42, w * 0.085));
+          const scaled = Math.max(14, Math.min(18, w * 0.038));
           el.style.fontSize = `${scaled}px`;
+          el.style.lineHeight = "1.4";
+          el.style.padding = "0";
+          el.style.borderRadius = "0";
+          el.style.overflow = "visible";
+          el.style.width = `${rect.width}px`;
+          // Use H's visual height to compute BC top if H has been laid out
+          if (hRect) {
+            const hVisualHeight = hScaled * 0.92 * 4; // 4 lines at 0.92 leading
+            el.style.left = `${hRect.left}px`;
+            el.style.top = `${hRect.top + hVisualHeight + 2}px`;
+            el.style.height = "auto";
+          } else {
+            el.style.left = `${rect.left}px`;
+            el.style.top = `${rect.top}px`;
+            el.style.height = `${rect.height}px`;
+          }
         }
       }
     };
@@ -324,8 +286,6 @@ export default function App() {
         const vvCleanup = (st as unknown as { _vvCleanup?: () => void })._vvCleanup;
         if (vvCleanup) vvCleanup();
         st.kill();
-        // Removing the pin's spacer is part of kill(); force a refresh so a
-        // gate flip never leaves a dead pinned spacer (§15).
         ScrollTrigger.refresh();
       }
       stRef.current = null;
@@ -381,7 +341,6 @@ export default function App() {
   const expandedProject = expandedIdx !== null ? filteredProjects[expandedIdx] : null;
   const canvasBlur = expandedIdx !== null ? "blur(14px) saturate(0.9)" : "blur(0px)";
   const scrubLocked = isFallback;
-  // Toggle hidden past p=0.10 in wall mode; always visible in fallback hero (scrubLocked) unless a panel is open.
   const effectiveToggleHidden = expandedIdx !== null || (!scrubLocked && scrubP > 0.10);
 
   const handleToggle = () => {
@@ -401,14 +360,13 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [expandedIdx]);
 
-  // Onboarding hint dismisses on scroll start or first drag (§13)
   const onboardingHidden = hasScrolled || (!isFallback && scrubP > 0.02) || expandedIdx !== null;
 
   return (
-    <div style={{ background: "#0A0A0A" }}>
+    <div style={{ background: "#000" }}>
       <section
         ref={triggerRef}
-        style={{ position: "relative", height: "100vh", overflow: "hidden", background: "#0A0A0A" }}
+        style={{ position: "relative", height: "100vh", overflow: "hidden", background: "#000" }}
       >
         <div
           ref={containerRef}
@@ -432,7 +390,7 @@ export default function App() {
             position: "absolute",
             top: 0, left: 0, right: 0,
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "20px 24px",
+            padding: "16px 24px",
             pointerEvents: "none",
             zIndex: 3,
           }}
@@ -455,7 +413,7 @@ export default function App() {
               onClick={handleToggle}
               tabIndex={effectiveToggleHidden ? -1 : 0}
               style={{
-                width: 36, height: 36, borderRadius: 999,
+                width: 34, height: 34, borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.14)",
                 background: viewMode === "outside" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
                 color: "rgba(255,255,255,0.92)",
@@ -488,7 +446,7 @@ export default function App() {
               onClick={(e) => e.preventDefault()}
               style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
-                height: 36, padding: "0 16px", borderRadius: 999,
+                height: 34, padding: "0 15px", borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.14)",
                 background: "rgba(255,255,255,0.08)",
                 color: "rgba(255,255,255,0.92)",
@@ -570,7 +528,8 @@ export default function App() {
           <span>Drag to explore the sphere</span>
         </div>
 
-        {/* Zone HTML — editorial wall: E/H/B only; T/C1/C2 intentionally unmapped (§5 open) */}
+        {/* Zone HTML — closing-pass final §5: H (headline 4 lines heaviest weight) + BC (bio + contact)
+            No E, no T. Photo P is pure WebGL single unsliced BW — no HTML overlay. */}
         <div
           ref={zoneLayerRef}
           aria-hidden={isFallback || scrubP < 0.82}
@@ -582,62 +541,110 @@ export default function App() {
             zIndex: 2,
           }}
         >
-          {/* E — eyebrow */}
-          <div
-            data-zone="E"
-            style={{
-              position: "absolute",
-              display: "flex", alignItems: "center",
-              overflow: "hidden",
-              color: "rgba(255,255,255,0.52)",
-              fontFamily: "system-ui, sans-serif",
-              fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase",
-              whiteSpace: "nowrap",
-            }}
-          >
-            01 — THE PRACTICE
-          </div>
-          {/* H — headline (editorial: dominates frame, final word trailing-off) */}
+          {/* H — headline: 4 lines heaviest weight, final line 15% lightness, single-row bleed */}
           <div
             data-zone="H"
             style={{
               position: "absolute",
-              display: "flex", alignItems: "center",
-              overflow: "hidden",
+              display: "block",
+              padding: 0,
+              borderRadius: 0,
+              overflow: "visible",
               color: "rgba(255,255,255,0.96)",
               fontFamily: "system-ui, sans-serif",
-              // Font size driven by rAF scaled to projected width (§5 ~32px/500 mockup); keep hard-constrained
-              fontSize: "clamp(26px, 3.2vw, 42px)",
-              fontWeight: 560, lineHeight: 1.02, letterSpacing: "-0.04em",
+              fontWeight: 900,
+              lineHeight: 0.98,
+              letterSpacing: "-0.01em",
               textWrap: "balance",
             }}
           >
-            <span>
-              Engineering at the edge of AI and{" "}
-              <span style={{ color: "rgba(255,255,255,0.28)", fontWeight: 500 }}>automation.</span>
-            </span>
+            <div
+              style={{
+                position: "absolute",
+                top: "-2.4em",
+                left: 0,
+                color: "rgba(255,255,255,0.52)",
+                fontFamily: "system-ui, sans-serif",
+                fontSize: "clamp(12px, 1vw, 15px)",
+                fontWeight: 600,
+                letterSpacing: "0.14em",
+                lineHeight: 1,
+                textTransform: "uppercase",
+                whiteSpace: "nowrap",
+              }}
+            >
+              01 — THE PRACTICE
+            </div>
+            <div>Engineering</div>
+            <div>at the edge of</div>
+            <div>AI and</div>
+            <span style={{ background: "linear-gradient(90deg, #444343 0%, #707070 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent", display: "inline-block", fontWeight: 900 }}>automation</span>
           </div>
-          {/* B — bio (one-liner, secondary/small weight §5) */}
+          {/* BC — bio + contact stacked, small underlined links beneath bio */}
           <div
-            data-zone="B"
+            data-zone="BC"
             style={{
               position: "absolute",
-              display: "flex", alignItems: "center",
-              overflow: "hidden",
-              color: "rgba(255,255,255,0.58)",
-              fontFamily: "system-ui, sans-serif",
-              fontSize: "clamp(11px, 1.15vw, 14px)",
-              fontWeight: 400, lineHeight: 1.35, letterSpacing: "0.01em",
-              whiteSpace: "nowrap",
-              textOverflow: "ellipsis",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              gap: 10,
+              padding: 0,
+              borderRadius: 0,
+              marginTop: 0,
+              overflow: "visible",
             }}
           >
-            I build autonomous agents and scalable platforms that replace manual overhead with intelligent code.
+            <p
+              style={{
+                margin: 0,
+                color: "rgba(255,255,255,0.58)",
+                fontFamily: "system-ui, sans-serif",
+                fontSize: "inherit",
+                fontWeight: 400,
+                lineHeight: 1.35,
+                letterSpacing: "0.01em",
+              }}
+            >
+              I build autonomous agents and scalable platforms<br />that replace manual overhead with intelligent code.
+            </p>
+            <div style={{ display: "flex", gap: 18 }}>
+              <a
+                href="mailto:raedsiddiquie4@gmail.com"
+                style={{
+                  color: "rgba(255,255,255,0.72)",
+                  fontFamily: "system-ui, sans-serif",
+                  fontSize: 16,
+                  fontWeight: 500,
+                  letterSpacing: "0.02em",
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3,
+                  textDecorationThickness: 1,
+                  textDecorationColor: "rgba(255,255,255,0.35)",
+                }}
+              >
+                Email
+              </a>
+              <a
+                href="https://www.linkedin.com/in/raedsiddiquie/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "rgba(255,255,255,0.72)",
+                  fontFamily: "system-ui, sans-serif",
+                  fontSize: 16,
+                  fontWeight: 500,
+                  letterSpacing: "0.02em",
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3,
+                  textDecorationThickness: 1,
+                  textDecorationColor: "rgba(255,255,255,0.35)",
+                }}
+              >
+                Resume
+              </a>
+            </div>
           </div>
-          {/* T / C1 / C2 — intentionally NOT rendered on the wall; spec §5 leaves them unresolved:
-              - C1/C2: working assumption quiet text beneath bio vs folding into header nav (OPEN)
-              - T: status undecided, early exploration dropped it (OPEN)
-              Surface back rather than guessing placement — no wall cells assigned. */}
         </div>
       </section>
 
@@ -649,7 +656,7 @@ export default function App() {
           style={{
             minHeight: "60vh",
             padding: "80px 40px",
-            background: "#0A0A0A",
+            background: "#000",
             color: "rgba(255,255,255,0.58)",
             fontFamily: "system-ui, sans-serif",
           }}
@@ -657,14 +664,14 @@ export default function App() {
           <div style={{ maxWidth: 640 }}>
             <p style={{ margin: 0, fontSize: 13, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.4 }}>— Next section</p>
             <p style={{ marginTop: 16, lineHeight: 1.6, fontSize: 15 }}>
-              The wall above has settled — cover-framed, stroke-free over text, bezelled photo mosaic, HTML text locked to its zones.
+              The wall above has settled — cover-framed, stroke-free, single unsliced BW portrait, HTML zones flush with zero padding/radius.
               Wall unpinned and scrolling away. WebGL pauses once off-screen.
             </p>
           </div>
         </section>
       )}
 
-      <div style={{ height: isFallback ? "0" : "40vh", background: "#0A0A0A" }} />
+      <div style={{ height: isFallback ? "0" : "40vh", background: "#000" }} />
 
       {expandedProject && expandedIdx !== null && (
         <ExpandedPanel
