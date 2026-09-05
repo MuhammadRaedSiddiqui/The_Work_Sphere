@@ -4,6 +4,7 @@ import {
   BACKGROUND_COLOR,
   BLUEPRINT_END,
   CONNECTOR_LINE_OPACITY,
+  FOCUS_ROTATION_EPSILON,
   FLIGHT_END,
   IDLE_STROKE_OPACITY,
   INTERACTION_LOCK_EPSILON,
@@ -13,6 +14,7 @@ import {
   REVEAL_END,
   ZONES,
 } from "../constants";
+import { rotateToFaceCard, stepFaceRotation, type FaceRotation } from "./rotateToFace";
 import {
   cardSlots,
   buildConnectorPairs,
@@ -42,6 +44,7 @@ const TOGGLE_LERP_RATE = 5.5;
 const INSIDE_CAM_Z = 0.01;
 const FOG_INSIDE_NEAR = SPHERE_RADIUS * 1.6;
 const FOG_INSIDE_FAR = SPHERE_RADIUS * 3.2;
+const FOCUS_FRONT_YAW = Math.PI / 2;
 
 // Photo — SINGLE UNSLICED image spanning the zone's aggregate rect (§4 final).
 // No per-card UV inset, no bezel, no tiled seams. Each of the 8 photo cards
@@ -71,6 +74,8 @@ export class SphereScene {
   private rot = new THREE.Quaternion();
   private idleAngle = 0;
   private angVel = { x: 0, y: 0 };
+  private focusRotation: { current: FaceRotation; target: FaceRotation } | null = null;
+  private activeSlotIndex: number | null = null;
   private dragging = false;
   private lastPointer: { x: number; y: number; t: number } | null = null;
   private dragStart: { x: number; y: number } | null = null;
@@ -106,6 +111,7 @@ export class SphereScene {
   private tmpV = new THREE.Vector3();
   private tmpV2 = new THREE.Vector3();
   private tmpV3 = new THREE.Vector3();
+  private focusEuler = new THREE.Euler(0, 0, 0, "XYZ");
 
   // Colors for arrival fade — reused object to avoid alloc
   private blackColor = new THREE.Color(BACKGROUND_COLOR);
@@ -133,12 +139,30 @@ export class SphereScene {
 
   setScrubProgress(p: number) {
     this.scrubP = THREE.MathUtils.clamp(p, 0, 1);
+    if (this.scrubP > INTERACTION_LOCK_EPSILON) this.focusRotation = null;
     this.onScrubCb?.(this.scrubP);
   }
 
   setOnScrub(cb: ((p: number) => void) | null) { this.onScrubCb = cb; }
   getRenderScene() { return this.scene; }
   getRenderCamera() { return this.camera; }
+
+  setActiveSlot(slotIndex: number | null) {
+    this.activeSlotIndex = slotIndex;
+    if (slotIndex === null || this.scrubP > INTERACTION_LOCK_EPSILON || this.dragging) {
+      this.focusRotation = null;
+      return;
+    }
+    const slot = cardSlots[slotIndex];
+    if (!slot) return;
+    this.tmpQ.setFromAxisAngle(AXIS_Y, -this.idleAngle);
+    this.rot.copy(this.tmpQ).multiply(this.rot);
+    this.idleAngle = 0;
+    this.focusEuler.setFromQuaternion(this.rot, "XYZ");
+    const current = { yaw: FOCUS_FRONT_YAW - this.focusEuler.y, pitch: this.focusEuler.x };
+    this.focusRotation = { current, target: rotateToFaceCard(slot, current.yaw) };
+    if (this.reduceMotion) this.applyFocusRotation(this.focusRotation.target);
+  }
 
   getViewMode(): "inside" | "outside" {
     return this.viewModeTarget === 1 ? "outside" : "inside";
@@ -456,6 +480,7 @@ export class SphereScene {
   private onPointerDown = (e: PointerEvent) => {
     if (this.scrubP > INTERACTION_LOCK_EPSILON) return;
     if (this.expandedSlotIndex !== null) return;
+    this.cancelFocusRotation();
     this.dragging = true;
     this.clickCandidate = true;
     this.dragStart = { x: e.clientX, y: e.clientY };
@@ -523,6 +548,17 @@ export class SphereScene {
     this.rot.premultiply(this.tmpQ);
   }
 
+  private cancelFocusRotation() {
+    this.focusRotation = null;
+  }
+
+  private applyFocusRotation(rotation: FaceRotation) {
+    // The scene's front is -Z. In its quaternion convention that maps the
+    // shared logical yaw target (-phi) to a world Y rotation of pi/2 - yaw.
+    this.focusEuler.set(rotation.pitch, FOCUS_FRONT_YAW - rotation.yaw, 0, "XYZ");
+    this.rot.setFromEuler(this.focusEuler);
+  }
+
   update(dt: number) {
     if (this.disposed) return;
     this.elapsed += dt;
@@ -547,7 +583,16 @@ export class SphereScene {
     const toggleT = this.toggleProgress;
 
     const interactive = this.scrubP <= INTERACTION_LOCK_EPSILON;
-    if (interactive) {
+    if (interactive && this.focusRotation) {
+      if (!this.reduceMotion) this.focusRotation.current = stepFaceRotation(this.focusRotation.current, this.focusRotation.target);
+      this.applyFocusRotation(this.reduceMotion ? this.focusRotation.target : this.focusRotation.current);
+      if (
+        Math.abs(this.focusRotation.current.yaw - this.focusRotation.target.yaw) <= FOCUS_ROTATION_EPSILON &&
+        Math.abs(this.focusRotation.current.pitch - this.focusRotation.target.pitch) <= FOCUS_ROTATION_EPSILON
+      ) {
+        this.focusRotation.current = this.focusRotation.target;
+      }
+    } else if (interactive) {
       if (this.dragging) {
       } else if (Math.abs(this.angVel.x) > IDLE_RESUME_EPS || Math.abs(this.angVel.y) > IDLE_RESUME_EPS) {
         this.applyDrag((this.angVel.y * dt) / this.DRAG_TO_RAD, (this.angVel.x * dt) / this.DRAG_TO_RAD);
@@ -678,6 +723,7 @@ export class SphereScene {
       } else {
         targetStroke = 0;
       }
+      if (scrubP <= INTERACTION_LOCK_EPSILON && card.slot.index === this.activeSlotIndex) targetStroke = Math.max(targetStroke, STROKE_BOOST);
       // During expanded mode, lines already at 0; otherwise lerp toward target
       if (this.expandedSlotIndex !== null) {
         lineMat.opacity = THREE.MathUtils.lerp(lineMat.opacity, 0, 0.18);

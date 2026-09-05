@@ -25,6 +25,10 @@ export const TOTAL_CARDS = CARD_COUNT;
 
 // Progress budget (v2, §6): flight 0–0.62 · arrival 0.62–0.74 · blueprint 0.74–0.82 · reveal 0.82–0.94 · settled 0.94–1.0
 export const INTERACTION_LOCK_EPSILON = 0.02;
+export const FOCUS_ROTATION_LERP = 0.11;
+export const FOCUS_ROTATION_EPSILON = 0.004;
+export const FOCUS_PITCH_SCALE = 0.55;
+export const FOCUS_PITCH_LIMIT = 0.55;
 export const TOGGLE_HIDE_END = 0.10;
 export const HERO_HEADLINE_FADE_END = 0.12;
 export const FLIGHT_END = 0.62;

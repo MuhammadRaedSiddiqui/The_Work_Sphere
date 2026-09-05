@@ -3,6 +3,8 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SphereScene } from "./scene/SphereScene";
 import { SceneLifecycleManager } from "./scene/SceneLifecycleManager";
+import { walkCardRing, type CardNavigationKey } from "./scene/cardNavigation";
+import { cardSlots } from "./scene/layout";
 import ProjectPanel, { type ProjectPanelHandle } from "./components/ProjectPanel";
 import FallbackAbout from "./components/FallbackAbout";
 import { projects } from "./data/projects";
@@ -36,7 +38,12 @@ export default function App() {
   const hasScrolledRef = useRef(false);
 
   const filteredProjects = useMemo(() => projects.filter(Boolean) as Project[], []);
+  const availableCardSlots = useMemo(() => cardSlots.filter((slot) => projects[slot.index] !== null), []);
+  const availableCardSlotIndices = useMemo(() => new Set(availableCardSlots.map((slot) => slot.index)), [availableCardSlots]);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [activeSlotIndex, setActiveSlotIndex] = useState(() => availableCardSlots[0]?.index ?? 0);
+  const [liveMessage, setLiveMessage] = useState("");
+  const [skipLinkFocused, setSkipLinkFocused] = useState(false);
   const [enterFrom, setEnterFrom] = useState<DOMRect | undefined>();
   const [viewMode, setViewMode] = useState<"inside" | "outside">("inside");
   const [scrubP, setScrubP] = useState(0);
@@ -94,6 +101,23 @@ export default function App() {
     return projects.findIndex((x) => x?.id === p.id);
   };
 
+  const openProjectAtSlot = useCallback((slotIndex: number, screenRect: DOMRect) => {
+    if (filteredProjects.length === 0) return;
+    const project = projects[slotIndex];
+    if (!project) return;
+    const filteredIndex = filteredProjects.findIndex((item) => item.id === project.id);
+    if (filteredIndex === -1) return;
+    setEnterFrom(screenRect);
+    setExpandedIdx(filteredIndex);
+    sceneRef.current?.setExpandedSlot(slotIndex);
+  }, [filteredProjects]);
+
+  const activateCardSlot = useCallback((slotIndex: number) => {
+    if (!availableCardSlotIndices.has(slotIndex)) return;
+    setActiveSlotIndex(slotIndex);
+    sceneRef.current?.setActiveSlot(slotIndex);
+  }, [availableCardSlotIndices]);
+
   useEffect(() => {
     const setVh = () => {
       const vv = (window as unknown as { visualViewport?: VisualViewport }).visualViewport;
@@ -126,16 +150,7 @@ export default function App() {
     if (vignetteRef.current) scene.setVignetteEl(vignetteRef.current);
     setViewMode(scene.getViewMode());
     scene.setOnViewModeChange((mode) => setViewMode(mode));
-    scene.setOnCardClick((slotIndex, screenRect) => {
-      if (filteredProjects.length === 0) return;
-      const proj = projects[slotIndex];
-      if (!proj) return;
-      const fi = filteredProjects.findIndex((p) => p.id === proj.id);
-      if (fi === -1) return;
-      setEnterFrom(screenRect);
-      setExpandedIdx(fi);
-      scene.setExpandedSlot(slotIndex);
-    });
+    scene.setOnCardClick(openProjectAtSlot);
     let scrollIntentFired = false;
     const fireScrollIntent = () => {
       if (scrollIntentFired) return;
@@ -319,7 +334,7 @@ export default function App() {
       sceneRef.current = null;
       delete (window as unknown as { __sphere?: unknown }).__sphere;
     };
-  }, [filteredProjects, isFallback]);
+  }, [isFallback, openProjectAtSlot]);
 
   useEffect(() => {
     const st = stRef.current;
@@ -459,9 +474,71 @@ export default function App() {
   }, [expandedIdx, navigatePanel]);
 
   const onboardingHidden = hasScrolled || (!isFallback && scrubP > INTERACTION_LOCK_EPSILON) || expandedIdx !== null;
+  const keyboardSphereEnabled = scrubP <= INTERACTION_LOCK_EPSILON && expandedIdx === null && availableCardSlots.length > 0;
+  const activeProject = projects[activeSlotIndex];
+
+  useEffect(() => {
+    if (!keyboardSphereEnabled) sceneRef.current?.setActiveSlot(null);
+  }, [keyboardSphereEnabled]);
+
+  useEffect(() => {
+    if (!keyboardSphereEnabled || !activeProject) {
+      setLiveMessage("");
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setLiveMessage(`${activeProject.title}, ${activeProject.year ?? "year unknown"}, ${activeProject.status}`);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [activeProject, keyboardSphereEnabled]);
+
+  const handleSphereKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!keyboardSphereEnabled) return;
+    const keyMap: Record<string, CardNavigationKey> = {
+      ArrowLeft: "previous",
+      ArrowRight: "next",
+      ArrowUp: "previousRing",
+      ArrowDown: "nextRing",
+      Home: "first",
+      End: "last",
+    };
+    const navigation = keyMap[event.key];
+    if (navigation) {
+      event.preventDefault();
+      activateCardSlot(walkCardRing(cardSlots, activeSlotIndex, navigation, availableCardSlotIndices));
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      const rect = sceneRef.current?.getCardScreenPosition(activeSlotIndex) ?? new DOMRect();
+      openProjectAtSlot(activeSlotIndex, rect);
+    }
+  };
 
   return (
     <div style={{ background: "#000" }}>
+      <a
+        href="#after-hero"
+        onFocus={() => setSkipLinkFocused(true)}
+        onBlur={() => setSkipLinkFocused(false)}
+        style={{
+          position: "fixed",
+          top: 12,
+          left: 12,
+          zIndex: 100,
+          padding: "8px 12px",
+          border: "1px solid rgba(255,255,255,0.55)",
+          background: "#000",
+          color: "#EDEDF0",
+          fontFamily: "system-ui, sans-serif",
+          fontSize: 13,
+          textDecoration: "none",
+          transform: skipLinkFocused ? "translateY(0)" : "translateY(-160%)",
+          transition: "transform 120ms ease",
+        }}
+      >
+        Skip past hero
+      </a>
       <section
         ref={triggerRef}
         style={{ position: "relative", height: "100vh", overflow: "hidden", background: "#000" }}
@@ -470,6 +547,59 @@ export default function App() {
           ref={containerRef}
           style={{ position: "absolute", inset: 0, filter: canvasBlur, transition: "filter 420ms ease", willChange: "filter" }}
         />
+        <div
+          role="listbox"
+          tabIndex={keyboardSphereEnabled ? 0 : -1}
+          aria-label="Project sphere"
+          aria-disabled={!keyboardSphereEnabled}
+          aria-activedescendant={activeProject ? `hero-card-${activeProject.id}` : undefined}
+          onFocus={() => sceneRef.current?.setActiveSlot(activeSlotIndex)}
+          onKeyDown={handleSphereKeyDown}
+          style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none", outline: "none" }}
+        >
+          {availableCardSlots.map((slot) => {
+            const project = projects[slot.index];
+            if (!project) return null;
+            return (
+              <div
+                key={project.id}
+                id={`hero-card-${project.id}`}
+                role="option"
+                aria-selected={slot.index === activeSlotIndex}
+                aria-label={`${project.title}, ${project.year ?? "year unknown"}, ${project.status}`}
+                style={{
+                  position: "absolute",
+                  width: 1,
+                  height: 1,
+                  padding: 0,
+                  margin: -1,
+                  overflow: "hidden",
+                  clip: "rect(0, 0, 0, 0)",
+                  whiteSpace: "nowrap",
+                  border: 0,
+                }}
+              />
+            );
+          })}
+        </div>
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0, 0, 0, 0)",
+            whiteSpace: "nowrap",
+            border: 0,
+          }}
+        >
+          {liveMessage}
+        </div>
         <div
           ref={vignetteRef}
           style={{
@@ -747,10 +877,11 @@ export default function App() {
       </section>
 
       {/* Gate flip: fallback renders conventional About; otherwise the wall itself is the About (§2, §15) */}
-      {isFallback ? (
-        <FallbackAbout />
-      ) : (
-        <section
+      <div id="after-hero" tabIndex={-1}>
+        {isFallback ? (
+          <FallbackAbout />
+        ) : (
+          <section
           style={{
             minHeight: "60vh",
             padding: "80px 40px",
@@ -766,8 +897,9 @@ export default function App() {
               Wall unpinned and scrolling away. WebGL pauses once off-screen.
             </p>
           </div>
-        </section>
-      )}
+          </section>
+        )}
+      </div>
 
       <div style={{ height: isFallback ? "0" : "40vh", background: "#000" }} />
 
