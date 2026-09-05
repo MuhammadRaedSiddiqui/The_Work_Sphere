@@ -9,6 +9,7 @@ export const projects: (Project | null)[] = (() => {
   const records: Project[] = [
     {
       id: "personal-ai-employee",
+      lane: "ai",
       title: "Personal AI Employee",
       thumbnail: "/img/projects/personal-ai-employee/thumb.jpg",
       heroImage: "/img/projects/personal-ai-employee/hero.jpg",
@@ -24,6 +25,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "crm-digital-fte",
+      lane: "apps",
       title: "CRM Digital FTE",
       thumbnail: "/img/projects/crm-digital-fte/thumb.jpg",
       heroImage: "/img/projects/crm-digital-fte/hero.jpg",
@@ -39,6 +41,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "agent-forge",
+      lane: "ai",
       title: "Agent Forge",
       thumbnail: "/img/projects/agent-forge/thumb.jpg",
       heroImage: "/img/projects/agent-forge/hero.jpg",
@@ -54,6 +57,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "finance-tracker",
+      lane: "apps",
       title: "Finance Tracker",
       thumbnail: "/img/projects/finance-tracker/thumb.jpg",
       heroImage: "/img/projects/finance-tracker/hero.jpg",
@@ -69,6 +73,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "devdocs-ai",
+      lane: "ai",
       title: "DevDocs AI",
       thumbnail: "/img/projects/devdocs-ai/thumb.jpg",
       heroImage: "/img/projects/devdocs-ai/hero.jpg",
@@ -84,6 +89,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "estate-ease",
+      lane: "apps",
       title: "Estate Ease",
       thumbnail: "/img/projects/estate-ease/thumb.jpg",
       heroImage: "/img/projects/estate-ease/hero.jpg",
@@ -99,6 +105,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "physical-ai-textbook",
+      lane: "apps",
       title: "Physical AI Textbook",
       thumbnail: "/img/projects/physical-ai-textbook/thumb.jpg",
       heroImage: "/img/projects/physical-ai-textbook/hero.jpg",
@@ -115,6 +122,7 @@ export const projects: (Project | null)[] = (() => {
     // ── Cards 8–48 (41 additional projects) ──
     {
       id: "prompt-orchestrator",
+      lane: "ai",
       title: "Prompt Orchestrator",
       year: "2025",
       status: "shipped",
@@ -130,6 +138,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "vision-index",
+      lane: "ai",
       title: "Vision Index",
       year: "2025",
       status: "shipped",
@@ -145,6 +154,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "voice-scribe",
+      lane: "ai",
       title: "Voice Scribe",
       year: "2024",
       status: "shipped",
@@ -160,6 +170,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "rag-pipeline-kit",
+      lane: "ai",
       title: "RAG Pipeline Kit",
       year: "2025",
       status: "in-progress",
@@ -175,6 +186,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "agent-memory",
+      lane: "ai",
       title: "Agent Memory Store",
       year: "2026",
       status: "in-progress",
@@ -190,6 +202,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "synth-data-factory",
+      lane: "ai",
       title: "Synth Data Factory",
       year: "2024",
       status: "shipped",
@@ -205,6 +218,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "eval-harness",
+      lane: "ai",
       title: "Eval Harness",
       year: "2025",
       status: "shipped",
@@ -220,6 +234,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "deploy-pilot",
+      lane: "tools",
       title: "Deploy Pilot",
       year: "2024",
       status: "shipped",
@@ -235,6 +250,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "log-lens",
+      lane: "tools",
       title: "Log Lens",
       year: "2023",
       status: "shipped",
@@ -250,6 +266,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "infra-graph",
+      lane: "tools",
       title: "Infra Graph",
       year: "2024",
       status: "in-progress",
@@ -265,6 +282,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "canary-watch",
+      lane: "tools",
       title: "Canary Watch",
       year: "2025",
       status: "planned",
@@ -280,6 +298,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "vault-console",
+      lane: "tools",
       title: "Vault Console",
       year: "2023",
       status: "shipped",
@@ -295,6 +314,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "invoice-flow",
+      lane: "apps",
       title: "Invoice Flow",
       year: "2024",
       status: "shipped",
@@ -310,6 +330,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "meeting-scribe",
+      lane: "ai",
       title: "Meeting Scribe",
       year: "2025",
       status: "in-progress",
@@ -325,6 +346,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "form-forge",
+      lane: "tools",
       title: "Form Forge",
       year: "2023",
       status: "shipped",
@@ -340,6 +362,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "waitlist-kit",
+      lane: "apps",
       title: "Waitlist Kit",
       year: "2024",
       status: "shipped",
@@ -355,6 +378,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "changelog-cms",
+      lane: "apps",
       title: "Changelog CMS",
       year: "2024",
       status: "shipped",
@@ -370,6 +394,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "slot-engine",
+      lane: "tools",
       title: "Slot Engine",
       year: "2023",
       status: "shipped",
@@ -385,6 +410,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "habit-loop",
+      lane: "apps",
       title: "Habit Loop",
       year: "2024",
       status: "shipped",
@@ -400,6 +426,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "pantry-scan",
+      lane: "ai",
       title: "Pantry Scan",
       year: "2025",
       status: "in-progress",
@@ -415,6 +442,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "transit-pulse",
+      lane: "apps",
       title: "Transit Pulse",
       year: "2023",
       status: "shipped",
@@ -430,6 +458,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "metric-mirror",
+      lane: "tools",
       title: "Metric Mirror",
       year: "2024",
       status: "shipped",
@@ -445,6 +474,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "funnel-scope",
+      lane: "tools",
       title: "Funnel Scope",
       year: "2025",
       status: "planned",
@@ -460,6 +490,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "query-canvas",
+      lane: "tools",
       title: "Query Canvas",
       year: "2024",
       status: "in-progress",
@@ -475,6 +506,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "git-pulse",
+      lane: "tools",
       title: "Git Pulse",
       year: "2023",
       status: "shipped",
@@ -490,6 +522,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "env-sync",
+      lane: "tools",
       title: "Env Sync",
       year: "2024",
       status: "shipped",
@@ -505,6 +538,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "scaffold-cli",
+      lane: "tools",
       title: "Scaffold CLI",
       year: "2025",
       status: "shipped",
@@ -520,6 +554,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "mock-mesh",
+      lane: "tools",
       title: "Mock Mesh",
       year: "2023",
       status: "shipped",
@@ -535,6 +570,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "rate-gate",
+      lane: "tools",
       title: "Rate Gate",
       year: "2024",
       status: "shipped",
@@ -550,6 +586,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "webhook-relay",
+      lane: "tools",
       title: "Webhook Relay",
       year: "2025",
       status: "in-progress",
@@ -565,6 +602,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "hot-cache",
+      lane: "tools",
       title: "Hot Cache",
       year: "2023",
       status: "shipped",
@@ -580,6 +618,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "audit-trail",
+      lane: "tools",
       title: "Audit Trail",
       year: "2024",
       status: "shipped",
@@ -595,6 +634,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "token-forge",
+      lane: "tools",
       title: "Token Forge",
       year: "2023",
       status: "shipped",
@@ -610,6 +650,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "stream-ui",
+      lane: "apps",
       title: "Stream UI",
       year: "2025",
       status: "in-progress",
@@ -625,6 +666,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "veritas",
+      lane: "ai",
       title: "Veritas",
       year: "2024",
       status: "shipped",
@@ -640,6 +682,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "chart-kit",
+      lane: "tools",
       title: "Chart Kit",
       year: "2023",
       status: "shipped",
@@ -655,6 +698,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "snippet-vault",
+      lane: "tools",
       title: "Snippet Vault",
       year: "2024",
       status: "shipped",
@@ -670,6 +714,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "doc-search",
+      lane: "ai",
       title: "Doc Search",
       year: "2025",
       status: "planned",
@@ -685,6 +730,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "pixel-sort",
+      lane: "apps",
       title: "Pixel Sort",
       year: "2023",
       status: "shipped",
@@ -700,6 +746,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "sound-map",
+      lane: "apps",
       title: "Sound Map",
       year: "2024",
       status: "planned",
@@ -715,6 +762,7 @@ export const projects: (Project | null)[] = (() => {
     },
     {
       id: "terminal-studio",
+      lane: "tools",
       title: "Terminal Studio",
       year: "2025",
       status: "planned",

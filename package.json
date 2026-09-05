@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && npm run validate:project-lanes && vite build",
+    "validate:project-lanes": "node scripts/validate-project-lanes.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

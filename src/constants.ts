@@ -23,6 +23,18 @@ export const GRID_ASPECT = (GRID_COLS * CARD_ASPECT_WIDTH) / (GRID_ROWS * CARD_A
 
 export const TOTAL_CARDS = CARD_COUNT;
 
+export const LANES = ["ai", "tools", "apps"] as const;
+export const LANE_DISPLAY_NAMES = {
+  ai: "AI",
+  tools: "Tools",
+  apps: "Apps",
+} as const;
+export const LANE_COUNTS = {
+  ai: 14,
+  tools: 22,
+  apps: 12,
+} as const;
+
 // Progress budget (v2, §6): flight 0–0.62 · arrival 0.62–0.74 · blueprint 0.74–0.82 · reveal 0.82–0.94 · settled 0.94–1.0
 export const INTERACTION_LOCK_EPSILON = 0.02;
 export const FOCUS_ROTATION_LERP = 0.11;

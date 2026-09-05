@@ -8,6 +8,7 @@ export type Project = {
   year?: string;
   role?: string;
   techStack?: string[];
+  lane: "ai" | "tools" | "apps";
   status: "planned" | "in-progress" | "shipped";
   content?: string; // full case-study body (expanded view)
   gallery?: string[]; // additional screenshots
