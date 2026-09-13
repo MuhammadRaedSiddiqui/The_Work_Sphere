@@ -29,12 +29,61 @@ import {
   LABEL_FONT_FAMILY,
   RING_TABLE,
 } from "../constants";
+import { buildConnectorPairs, cardSlots, SPHERE_RADIUS } from "../scene/layout";
 
 const EMAIL = "raedsiddiquie4@gmail.com";
 const GITHUB_URL = "https://github.com/MuhammadRaedSiddiqui";
 const AVAILABILITY = "Available for collaborations and contract work";
 const mono = LABEL_FONT_FAMILY;
 const grotesk = DISPLAY_FONT_FAMILY;
+
+type LatticePoint = { x: number; y: number; depth: number; angle: number };
+
+// A still 2D projection of the shared sphere topology. This gives the close a
+// quiet structural echo of the 48-card system without creating a WebGL scene.
+const CLOSING_LATTICE_POINTS: LatticePoint[] = cardSlots.map((slot) => {
+  const [x, y, z] = slot.position;
+  const yaw = 0.56;
+  const projectedX = x * Math.cos(yaw) + z * Math.sin(yaw);
+  const depth = -x * Math.sin(yaw) + z * Math.cos(yaw);
+  return {
+    x: 500 + projectedX * 43,
+    y: 350 - y * 39,
+    depth,
+    angle: Math.atan2(y, projectedX) * (180 / Math.PI) * 0.12,
+  };
+});
+const CLOSING_LATTICE_PAIRS = buildConnectorPairs();
+
+function ClosingLattice() {
+  return (
+    <svg className="closing-lattice" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g className="closing-lattice-lines">
+        {CLOSING_LATTICE_PAIRS.map(([from, to], index) => {
+          const start = CLOSING_LATTICE_POINTS[from];
+          const end = CLOSING_LATTICE_POINTS[to];
+          return <line key={index} x1={start.x} y1={start.y} x2={end.x} y2={end.y} />;
+        })}
+      </g>
+      <g className="closing-lattice-cards">
+        {CLOSING_LATTICE_POINTS.map((point, index) => {
+          const scale = 0.72 + ((point.depth + SPHERE_RADIUS) / (SPHERE_RADIUS * 2)) * 0.42;
+          return (
+            <rect
+              key={index}
+              x="-19"
+              y="-12"
+              width="38"
+              height="24"
+              rx="1"
+              transform={`translate(${point.x} ${point.y}) rotate(${point.angle}) scale(${scale})`}
+            />
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
 
 export default function ClosingSection() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -74,6 +123,7 @@ export default function ClosingSection() {
       className={`closing-section${revealed ? " is-revealed" : ""}${reduceMotion ? " reduce-motion" : ""}`}
       aria-labelledby="closing-heading"
     >
+      <ClosingLattice />
       <div className="closing-card-shell">
         <div className={`closing-card${flipped ? " is-flipped" : ""}`}>
           <button
@@ -119,8 +169,9 @@ export default function ClosingSection() {
 }
 
 const closingStyles = `
-  .closing-section { min-height:100vh; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:48px 20px; background:#000; color:#ededf0; }
-  .closing-card-shell { width:min(${CLOSING_CARD_MAX_WIDTH_PX}px, ${CLOSING_CARD_MAX_VIEWPORT_WIDTH}vw); aspect-ratio:${CARD_ASPECT}; perspective:1100px; }.closing-card { position:relative; width:100%; height:100%; overflow:hidden; box-sizing:border-box; background:#${CARD_FILL_COLOR.toString(16).padStart(6, "0")}; border:1px solid rgba(255,255,255,${IDLE_STROKE_OPACITY}); transform-style:preserve-3d; transition:border-color ${CLOSING_BORDER_REVEAL_MS}ms ease ${CLOSING_BORDER_REVEAL_DELAY_MS}ms, transform ${CLOSING_CARD_FLIP_MS}ms cubic-bezier(.2,.8,.2,1); }.closing-card.is-flipped { transform:rotateY(180deg); }
+  .closing-section { position:relative; isolation:isolate; min-height:100vh; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:48px 20px; overflow:hidden; background:#000; color:#ededf0; }
+  .closing-lattice { position:absolute; z-index:0; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; opacity:.7; }.closing-lattice-lines line { stroke:rgba(255,255,255,${IDLE_STROKE_OPACITY}); stroke-width:1; }.closing-lattice-cards rect { fill:rgba(51,51,58,.72); stroke:rgba(255,255,255,${IDLE_STROKE_OPACITY}); stroke-width:1; }
+  .closing-card-shell,.closing-colophon { position:relative; z-index:1; }.closing-card-shell { width:min(${CLOSING_CARD_MAX_WIDTH_PX}px, ${CLOSING_CARD_MAX_VIEWPORT_WIDTH}vw); aspect-ratio:${CARD_ASPECT}; perspective:1100px; }.closing-card { position:relative; width:100%; height:100%; overflow:hidden; box-sizing:border-box; background:#${CARD_FILL_COLOR.toString(16).padStart(6, "0")}; border:1px solid rgba(255,255,255,${IDLE_STROKE_OPACITY}); transform-style:preserve-3d; transition:border-color ${CLOSING_BORDER_REVEAL_MS}ms ease ${CLOSING_BORDER_REVEAL_DELAY_MS}ms, transform ${CLOSING_CARD_FLIP_MS}ms cubic-bezier(.2,.8,.2,1); }.closing-card.is-flipped { transform:rotateY(180deg); }
   .closing-card-flipper { position:absolute; z-index:2; inset:0; pointer-events:none; transform-style:preserve-3d; }.closing-card-face { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; }.closing-card-back { display:flex; align-items:flex-end; box-sizing:border-box; padding:clamp(${CLOSING_CARD_PADDING_MIN_PX}px, ${CLOSING_CARD_PADDING_VIEWPORT_WIDTH}vw, ${CLOSING_CARD_PADDING_MAX_PX}px); background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,.03) 45%), url(${COMING_SOON_IMAGE_SRC}) center/cover no-repeat; color:rgba(255,255,255,.66); font:11px ${mono}; letter-spacing:.08em; text-transform:uppercase; transform:rotateY(180deg); }
   .closing-flip-button { position:absolute; z-index:1; inset:0; width:100%; height:100%; border:0; padding:0; background:transparent; cursor:pointer; backface-visibility:hidden; -webkit-backface-visibility:hidden; }.closing-flip-button:focus-visible { outline:2px solid #ededf0; outline-offset:-4px; }
   .closing-placeholder { position:absolute; inset:0; display:flex; align-items:flex-end; padding:clamp(${CLOSING_CARD_PADDING_MIN_PX}px, ${CLOSING_CARD_PADDING_VIEWPORT_WIDTH}vw, ${CLOSING_CARD_PADDING_MAX_PX}px); box-sizing:border-box; background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,.03) 45%), url(${COMING_SOON_IMAGE_SRC}) center/cover no-repeat; color:rgba(255,255,255,.66); font:11px ${mono}; letter-spacing:.08em; text-transform:uppercase; opacity:1; transition:opacity ${CLOSING_PLACEHOLDER_FADE_MS}ms ease; }
