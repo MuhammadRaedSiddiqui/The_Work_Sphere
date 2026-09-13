@@ -41,6 +41,11 @@ type WorkState = {
 type IndexedProject = Project & { stableIndex: number };
 
 const allProjects: IndexedProject[] = projects.flatMap((project, stableIndex) => project ? [{ ...project, stableIndex }] : []);
+// Only expose stack filters that can produce a result. Keep the full shared list for
+// route parsing, so an old URL remains safely understood and can still be cleared.
+const availableWorkStackFilters = WORK_STACK_FILTERS.filter((stack) =>
+  allProjects.some((project) => project.techStack?.includes(stack)),
+);
 const GROUPED_SORTS = new Set<SortKey>(["year", "status", "lane"]);
 const mono = LABEL_FONT_FAMILY;
 const grotesk = DISPLAY_FONT_FAMILY;
@@ -508,7 +513,7 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
         </div>
         <div className="work-filters" aria-label="Filter projects">
           {WORK_STATUS_FILTERS.map((status) => <FilterChip key={status} active={work.filters.status.includes(status)} label={status} count={prospectiveCount("status", status)} onClick={() => toggleFilter("status", status)} />)}
-          {WORK_STACK_FILTERS.map((stack) => <FilterChip key={stack} active={work.filters.stack.includes(stack)} label={stack} count={prospectiveCount("stack", stack)} onClick={() => toggleFilter("stack", stack)} />)}
+          {availableWorkStackFilters.map((stack) => <FilterChip key={stack} active={work.filters.stack.includes(stack)} label={stack} count={prospectiveCount("stack", stack)} onClick={() => toggleFilter("stack", stack)} />)}
           {activeFilters && <button type="button" className="work-clear" onClick={clearFilters}>Clear</button>}
         </div>
       </div>
