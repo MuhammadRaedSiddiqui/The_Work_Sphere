@@ -22,6 +22,7 @@ import {
   CLOSING_REVEAL_DELAY_MS,
   CLOSING_REVEAL_THRESHOLD,
   COMING_SOON_IMAGE_SRC,
+  CONNECTOR_LINE_OPACITY,
   CONNECTOR_SEGMENT_COUNT,
   CONTROL_PILL_RADIUS_PX,
   DISPLAY_FONT_FAMILY,
@@ -37,7 +38,7 @@ const AVAILABILITY = "Available for collaborations and contract work";
 const mono = LABEL_FONT_FAMILY;
 const grotesk = DISPLAY_FONT_FAMILY;
 
-type LatticePoint = { x: number; y: number; depth: number; angle: number };
+type LatticePoint = { x: number; y: number; depth: number; angle: number; opacity: number };
 
 // A still 2D projection of the shared sphere topology. This gives the close a
 // quiet structural echo of the 48-card system without creating a WebGL scene.
@@ -46,14 +47,24 @@ const CLOSING_LATTICE_POINTS: LatticePoint[] = cardSlots.map((slot) => {
   const yaw = 0.56;
   const projectedX = x * Math.cos(yaw) + z * Math.sin(yaw);
   const depth = -x * Math.sin(yaw) + z * Math.cos(yaw);
+  const depthFraction = (depth + SPHERE_RADIUS) / (SPHERE_RADIUS * 2);
+  const perspective = 0.78 + depthFraction * 0.38;
   return {
-    x: 500 + projectedX * 43,
-    y: 350 - y * 39,
+    x: 500 + projectedX * 43 * perspective,
+    y: 350 - y * 39 * perspective,
     depth,
     angle: Math.atan2(y, projectedX) * (180 / Math.PI) * 0.12,
+    opacity: 0.2 + depthFraction * 0.72,
   };
 });
 const CLOSING_LATTICE_PAIRS = buildConnectorPairs();
+
+function connectorCurve(start: LatticePoint, end: LatticePoint, bridge: boolean) {
+  const pull = bridge ? 0.16 : 0.07;
+  const controlX = ((start.x + end.x) / 2) * (1 - pull) + 500 * pull;
+  const controlY = ((start.y + end.y) / 2) * (1 - pull) + 350 * pull;
+  return `M ${start.x} ${start.y} Q ${controlX} ${controlY} ${end.x} ${end.y}`;
+}
 
 function ClosingLattice() {
   return (
@@ -62,7 +73,8 @@ function ClosingLattice() {
         {CLOSING_LATTICE_PAIRS.map(([from, to], index) => {
           const start = CLOSING_LATTICE_POINTS[from];
           const end = CLOSING_LATTICE_POINTS[to];
-          return <line key={index} x1={start.x} y1={start.y} x2={end.x} y2={end.y} />;
+          const bridge = cardSlots[from].ring !== cardSlots[to].ring;
+          return <path key={index} className={bridge ? "is-bridge" : "is-ring"} d={connectorCurve(start, end, bridge)} opacity={(start.opacity + end.opacity) / 2} />;
         })}
       </g>
       <g className="closing-lattice-cards">
@@ -77,6 +89,7 @@ function ClosingLattice() {
               height="24"
               rx="1"
               transform={`translate(${point.x} ${point.y}) rotate(${point.angle}) scale(${scale})`}
+              opacity={point.opacity}
             />
           );
         })}
@@ -170,7 +183,7 @@ export default function ClosingSection() {
 
 const closingStyles = `
   .closing-section { position:relative; isolation:isolate; min-height:100vh; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:48px 20px; overflow:hidden; background:#000; color:#ededf0; }
-  .closing-lattice { position:absolute; z-index:0; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; opacity:.7; }.closing-lattice-lines line { stroke:rgba(255,255,255,${IDLE_STROKE_OPACITY}); stroke-width:1; }.closing-lattice-cards rect { fill:rgba(51,51,58,.72); stroke:rgba(255,255,255,${IDLE_STROKE_OPACITY}); stroke-width:1; }
+  .closing-lattice { position:absolute; z-index:0; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; -webkit-mask-image:radial-gradient(ellipse 78% 74% at center, #000 22%, transparent 76%); mask-image:radial-gradient(ellipse 78% 74% at center, #000 22%, transparent 76%); }.closing-lattice-lines path { fill:none; stroke:rgba(255,255,255,${CONNECTOR_LINE_OPACITY}); stroke-width:1; }.closing-lattice-lines .is-bridge { stroke-opacity:.7; }.closing-lattice-cards rect { fill:rgba(51,51,58,.72); stroke:rgba(255,255,255,${IDLE_STROKE_OPACITY}); stroke-width:1; }
   .closing-card-shell,.closing-colophon { position:relative; z-index:1; }.closing-card-shell { width:min(${CLOSING_CARD_MAX_WIDTH_PX}px, ${CLOSING_CARD_MAX_VIEWPORT_WIDTH}vw); aspect-ratio:${CARD_ASPECT}; perspective:1100px; }.closing-card { position:relative; width:100%; height:100%; overflow:hidden; box-sizing:border-box; background:#${CARD_FILL_COLOR.toString(16).padStart(6, "0")}; border:1px solid rgba(255,255,255,${IDLE_STROKE_OPACITY}); transform-style:preserve-3d; transition:border-color ${CLOSING_BORDER_REVEAL_MS}ms ease ${CLOSING_BORDER_REVEAL_DELAY_MS}ms, transform ${CLOSING_CARD_FLIP_MS}ms cubic-bezier(.2,.8,.2,1); }.closing-card.is-flipped { transform:rotateY(180deg); }
   .closing-card-flipper { position:absolute; z-index:2; inset:0; pointer-events:none; transform-style:preserve-3d; }.closing-card-face { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; }.closing-card-back { display:flex; align-items:flex-end; box-sizing:border-box; padding:clamp(${CLOSING_CARD_PADDING_MIN_PX}px, ${CLOSING_CARD_PADDING_VIEWPORT_WIDTH}vw, ${CLOSING_CARD_PADDING_MAX_PX}px); background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,.03) 45%), url(${COMING_SOON_IMAGE_SRC}) center/cover no-repeat; color:rgba(255,255,255,.66); font:11px ${mono}; letter-spacing:.08em; text-transform:uppercase; transform:rotateY(180deg); }
   .closing-flip-button { position:absolute; z-index:1; inset:0; width:100%; height:100%; border:0; padding:0; background:transparent; cursor:pointer; backface-visibility:hidden; -webkit-backface-visibility:hidden; }.closing-flip-button:focus-visible { outline:2px solid #ededf0; outline-offset:-4px; }
