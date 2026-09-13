@@ -14,6 +14,7 @@ import type { Project } from "./types";
 import {
   ARRIVAL_END,
   BLUEPRINT_END,
+  CONTROL_PILL_RADIUS_PX,
   DISPLAY_FONT_FAMILY,
   HERO_HEADLINE_FADE_END,
   INTERACTION_LOCK_EPSILON,
@@ -683,7 +684,7 @@ export default function App() {
               onClick={handleToggle}
               tabIndex={effectiveToggleHidden ? -1 : 0}
               style={{
-                width: 34, height: 34, borderRadius: 999,
+                width: 34, height: 34, borderRadius: CONTROL_PILL_RADIUS_PX,
                 border: "1px solid rgba(255,255,255,0.14)",
                 background: viewMode === "outside" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
                 color: "rgba(255,255,255,0.92)",
@@ -715,7 +716,7 @@ export default function App() {
               href="#close"
               style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
-                height: 34, padding: "0 15px", borderRadius: 999,
+                height: 34, padding: "0 15px", borderRadius: CONTROL_PILL_RADIUS_PX,
                 border: "1px solid rgba(255,255,255,0.14)",
                 background: "rgba(255,255,255,0.08)",
                 color: "rgba(255,255,255,0.92)",
@@ -762,7 +763,7 @@ export default function App() {
               onClick={(e) => e.preventDefault()}
               style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                height: 36, padding: "0 16px", borderRadius: 999,
+                height: 36, padding: "0 16px", borderRadius: CONTROL_PILL_RADIUS_PX,
                 border: "1px solid rgba(255,255,255,0.18)",
                 background: "rgba(255,255,255,0.08)",
                 color: "rgba(255,255,255,0.94)",
@@ -877,19 +878,24 @@ export default function App() {
             >
               I build autonomous agents and scalable platforms<br />that replace manual overhead with intelligent code.
             </p>
-            <div style={{ display: "flex", gap: 18 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               <a
                 href="mailto:raedsiddiquie4@gmail.com"
                 style={{
                   color: "rgba(255,255,255,0.72)",
-                  fontFamily: DISPLAY_FONT_FAMILY,
-                  fontSize: 16,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 30,
+                  boxSizing: "border-box",
+                  padding: "5px 10px",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: CONTROL_PILL_RADIUS_PX,
+                  background: "transparent",
+                  fontFamily: LABEL_FONT_FAMILY,
+                  fontSize: 11,
                   fontWeight: 500,
                   letterSpacing: "0.02em",
-                  textDecoration: "underline",
-                  textUnderlineOffset: 3,
-                  textDecorationThickness: 1,
-                  textDecorationColor: "rgba(255,255,255,0.35)",
+                  textDecoration: "none",
                 }}
               >
                 Email
@@ -900,14 +906,19 @@ export default function App() {
                 rel="noopener noreferrer"
                 style={{
                   color: "rgba(255,255,255,0.72)",
-                  fontFamily: DISPLAY_FONT_FAMILY,
-                  fontSize: 16,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 30,
+                  boxSizing: "border-box",
+                  padding: "5px 10px",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: CONTROL_PILL_RADIUS_PX,
+                  background: "transparent",
+                  fontFamily: LABEL_FONT_FAMILY,
+                  fontSize: 11,
                   fontWeight: 500,
                   letterSpacing: "0.02em",
-                  textDecoration: "underline",
-                  textUnderlineOffset: 3,
-                  textDecorationThickness: 1,
-                  textDecorationColor: "rgba(255,255,255,0.35)",
+                  textDecoration: "none",
                 }}
               >
                 Resume

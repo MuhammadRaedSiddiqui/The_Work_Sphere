@@ -23,6 +23,7 @@ import {
   CLOSING_REVEAL_THRESHOLD,
   COMING_SOON_IMAGE_SRC,
   CONNECTOR_SEGMENT_COUNT,
+  CONTROL_PILL_RADIUS_PX,
   DISPLAY_FONT_FAMILY,
   IDLE_STROKE_OPACITY,
   LABEL_FONT_FAMILY,
@@ -129,7 +130,7 @@ const closingStyles = `
   .closing-support { max-width:390px; margin:14px 0 0; color:rgba(255,255,255,.62); font:14px/1.45 ${grotesk}; }
   .closing-rule { height:1px; margin:clamp(18px, 3vw, 28px) 0 14px; background:rgba(255,255,255,.16); }
   .closing-availability { display:flex; align-items:center; gap:7px; margin:0; color:rgba(255,255,255,.8); font:11px ${mono}; }.closing-availability span { font-size:16px; line-height:1; animation:closing-pulse 1.6s ease-in-out infinite; } @keyframes closing-pulse { 50% { opacity:.35; } }
-  .closing-contact { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:14px; pointer-events:auto; font:11px ${mono}; }.closing-contact a { color:#ededf0; text-decoration:none; }.closing-contact a:hover { text-decoration:underline; text-underline-offset:3px; }.closing-contact button { appearance:none; border:1px solid rgba(255,255,255,.2); padding:4px 7px; background:transparent; color:rgba(255,255,255,.76); font:inherit; cursor:pointer; }
+  .closing-contact { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:14px; pointer-events:auto; font:11px ${mono}; }.closing-contact a,.closing-contact button { display:inline-flex; align-items:center; min-height:30px; box-sizing:border-box; appearance:none; border:1px solid rgba(255,255,255,.2); border-radius:${CONTROL_PILL_RADIUS_PX}px; padding:5px 10px; background:transparent; color:#ededf0; font:inherit; text-decoration:none; cursor:pointer; }.closing-contact a:hover,.closing-contact button:hover { background:rgba(255,255,255,.07); }
   .closing-colophon { width:min(${CLOSING_CARD_MAX_WIDTH_PX}px, ${CLOSING_CARD_MAX_VIEWPORT_WIDTH}vw); color:rgba(255,255,255,.42); font:11px/1.55 ${mono}; letter-spacing:.025em; opacity:0; transition:opacity ${CLOSING_COLOPHON_REVEAL_MS}ms ease ${CLOSING_COLOPHON_REVEAL_DELAY_MS}ms; }.closing-colophon p { margin:0; }
   .closing-section.is-revealed .closing-placeholder { opacity:0; }.closing-section.is-revealed .closing-body { opacity:1; transform:translateY(0); }.closing-section.is-revealed .closing-card { border-color:rgba(255,255,255,${CLOSING_REVEALED_STROKE_OPACITY}); }.closing-section.is-revealed .closing-colophon { opacity:1; }
   .closing-section.reduce-motion .closing-placeholder { display:none; }.closing-section.reduce-motion .closing-body,.closing-section.reduce-motion .closing-colophon { opacity:1; transform:none; transition:none; }.closing-section.reduce-motion .closing-card { border-color:rgba(255,255,255,.62); transition:none; }.closing-section.reduce-motion .closing-availability span { animation:none; }

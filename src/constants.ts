@@ -10,6 +10,7 @@ export const OUTSIDE_CONNECTOR_LINE_OPACITY = 0.20;
 // voice across Hero, About, Work, and Close.
 export const DISPLAY_FONT_FAMILY = 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 export const LABEL_FONT_FAMILY = 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace';
+export const CONTROL_PILL_RADIUS_PX = 999;
 
 // Card aspect is 3:2 (w:h) — locked; the 8×6 grid's native aspect of 2.0
 // derives from it and the transition spec's gate math depends on it.

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DISPLAY_FONT_FAMILY, LABEL_FONT_FAMILY } from "../constants";
+import { CONTROL_PILL_RADIUS_PX, DISPLAY_FONT_FAMILY, LABEL_FONT_FAMILY } from "../constants";
 import { PHOTO_ALT, PHOTO_FINAL_SRC } from "../constants";
 
 /**
@@ -131,19 +131,24 @@ export default function FallbackAbout() {
             >
               I build autonomous agents and scalable platforms<br />that replace manual overhead with intelligent code.
             </p>
-            <div style={{ marginTop: 16, display: "flex", gap: 18 }}>
+            <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 8 }}>
               <a
                 href="mailto:raedsiddiquie4@gmail.com"
                 style={{
                   color: "rgba(255,255,255,0.72)",
-                  fontFamily: DISPLAY_FONT_FAMILY,
-                  fontSize: 16,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 30,
+                  boxSizing: "border-box",
+                  padding: "5px 10px",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: CONTROL_PILL_RADIUS_PX,
+                  background: "transparent",
+                  fontFamily: LABEL_FONT_FAMILY,
+                  fontSize: 11,
                   fontWeight: 500,
                   letterSpacing: "0.02em",
-                  textDecoration: "underline",
-                  textUnderlineOffset: 3,
-                  textDecorationThickness: 1,
-                  textDecorationColor: "rgba(255,255,255,0.35)",
+                  textDecoration: "none",
                 }}
               >
                 Email
@@ -154,14 +159,19 @@ export default function FallbackAbout() {
                 rel="noopener noreferrer"
                 style={{
                   color: "rgba(255,255,255,0.72)",
-                  fontFamily: DISPLAY_FONT_FAMILY,
-                  fontSize: 16,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 30,
+                  boxSizing: "border-box",
+                  padding: "5px 10px",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: CONTROL_PILL_RADIUS_PX,
+                  background: "transparent",
+                  fontFamily: LABEL_FONT_FAMILY,
+                  fontSize: 11,
                   fontWeight: 500,
                   letterSpacing: "0.02em",
-                  textDecoration: "underline",
-                  textUnderlineOffset: 3,
-                  textDecorationThickness: 1,
-                  textDecorationColor: "rgba(255,255,255,0.35)",
+                  textDecoration: "none",
                 }}
               >
                 Resume
