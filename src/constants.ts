@@ -6,6 +6,11 @@ export const IDLE_STROKE_OPACITY = 0.33;
 export const CONNECTOR_LINE_OPACITY = 0.16;
 export const OUTSIDE_CONNECTOR_LINE_OPACITY = 0.20;
 
+// Typography is intentionally limited to one display voice and one utility
+// voice across Hero, About, Work, and Close.
+export const DISPLAY_FONT_FAMILY = 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+export const LABEL_FONT_FAMILY = 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace';
+
 // Card aspect is 3:2 (w:h) — locked; the 8×6 grid's native aspect of 2.0
 // derives from it and the transition spec's gate math depends on it.
 const CARD_ASPECT_WIDTH = 3;
@@ -15,6 +20,14 @@ export const CARD_ASPECT = CARD_ASPECT_WIDTH / CARD_ASPECT_HEIGHT;
 // Cards per latitude ring, north to south. Sums to 48.
 export const RING_TABLE: readonly number[] = [4, 8, 12, 12, 8, 4];
 export const CARD_COUNT = RING_TABLE.reduce((a, b) => a + b, 0);
+// Closed same-ring loops plus bidirectional nearest-neighbour links between
+// adjacent rings. This mirrors buildConnectorPairs() without importing layout
+// (which itself depends on these constants).
+export const CONNECTOR_SEGMENT_COUNT = CARD_COUNT + RING_TABLE.slice(1).reduce(
+  (count, ringSize, index) => count + Math.max(RING_TABLE[index], ringSize),
+  0,
+);
+export const COMING_SOON_IMAGE_SRC = "/img/coming-soon.jpg";
 
 // Target flat layout: 8 columns × 6 rows, row-major (row = floor(i/8), col = i%8).
 export const GRID_COLS = 8;
@@ -34,6 +47,40 @@ export const LANE_COUNTS = {
   tools: 22,
   apps: 12,
 } as const;
+
+// Work index layout and motion. Kept here so its two renderers do not drift.
+export const WORK_RAIL_WIDTH_PX = 320;
+export const WORK_RAIL_STACK_BREAKPOINT_PX = 980;
+export const WORK_RAIL_CROSSFADE_SWAP_MS = 100;
+export const WORK_INDEX_PAGE_SIZE = 10;
+export const WORK_STATUS_FILTERS = ["shipped", "in-progress", "planned"] as const;
+export const WORK_STACK_FILTERS = ["TypeScript", "Python", "Rust", "Go"] as const;
+
+// Closing section reveal and layout.
+export const CLOSING_CARD_MAX_WIDTH_PX = 560;
+export const CLOSING_CARD_MAX_VIEWPORT_WIDTH = 92;
+export const CLOSING_CARD_PADDING_MIN_PX = 26;
+export const CLOSING_CARD_PADDING_VIEWPORT_WIDTH = 4.4;
+export const CLOSING_CARD_PADDING_MAX_PX = 40;
+export const CLOSING_REVEAL_THRESHOLD = 0.55;
+export const CLOSING_REVEAL_DELAY_MS = 520;
+export const CLOSING_PLACEHOLDER_FADE_MS = 850;
+export const CLOSING_BODY_REVEAL_DELAY_MS = 300;
+export const CLOSING_BODY_REVEAL_MS = 750;
+export const CLOSING_BODY_REVEAL_TRANSLATE_Y_PX = 6;
+export const CLOSING_BORDER_REVEAL_DELAY_MS = 500;
+export const CLOSING_BORDER_REVEAL_MS = 500;
+export const CLOSING_REVEALED_STROKE_OPACITY = 0.62;
+export const CLOSING_COLOPHON_REVEAL_DELAY_MS = 750;
+export const CLOSING_COLOPHON_REVEAL_MS = 450;
+export const CLOSING_COPY_RESET_MS = 1600;
+export const CLOSING_CARD_FLIP_MS = 700;
+
+// The shared thumbnail atlas is row-major by stable index (same 8×6 map as the wall).
+export const THUMBNAIL_ATLAS_COLUMNS = GRID_COLS;
+export const THUMBNAIL_ATLAS_ROWS = GRID_ROWS;
+export const THUMBNAIL_ATLAS_AVIF_SRC = "/img/projects/thumbnail-atlas.avif";
+export const THUMBNAIL_ATLAS_WEBP_SRC = "/img/projects/thumbnail-atlas.webp";
 
 // Progress budget (v2, §6): flight 0–0.62 · arrival 0.62–0.74 · blueprint 0.74–0.82 · reveal 0.82–0.94 · settled 0.94–1.0
 export const INTERACTION_LOCK_EPSILON = 0.02;

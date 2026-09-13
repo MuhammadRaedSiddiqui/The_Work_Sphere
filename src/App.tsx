@@ -7,13 +7,17 @@ import { walkCardRing, type CardNavigationKey } from "./scene/cardNavigation";
 import { cardSlots } from "./scene/layout";
 import ProjectPanel, { type ProjectPanelHandle } from "./components/ProjectPanel";
 import FallbackAbout from "./components/FallbackAbout";
+import ClosingSection from "./components/ClosingSection";
+import WorkSection from "./components/WorkSection";
 import { projects } from "./data/projects";
 import type { Project } from "./types";
 import {
   ARRIVAL_END,
   BLUEPRINT_END,
+  DISPLAY_FONT_FAMILY,
   HERO_HEADLINE_FADE_END,
   INTERACTION_LOCK_EPSILON,
+  LABEL_FONT_FAMILY,
   REVEAL_END,
   TOGGLE_HIDE_END,
   ZONES,
@@ -23,6 +27,7 @@ import { shouldUseFallback } from "./utils/gates";
 gsap.registerPlugin(ScrollTrigger);
 
 export default function App() {
+  const [lifecycle, setLifecycle] = useState<SceneLifecycleManager | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const vignetteRef = useRef<HTMLDivElement>(null);
@@ -47,6 +52,16 @@ export default function App() {
   const [enterFrom, setEnterFrom] = useState<DOMRect | undefined>();
   const [viewMode, setViewMode] = useState<"inside" | "outside">("inside");
   const [scrubP, setScrubP] = useState(0);
+
+  useEffect(() => {
+    const manager = new SceneLifecycleManager();
+    setLifecycle(manager);
+    (window as unknown as { __sceneLifecycle?: SceneLifecycleManager }).__sceneLifecycle = manager;
+    return () => {
+      delete (window as unknown as { __sceneLifecycle?: SceneLifecycleManager }).__sceneLifecycle;
+      manager.dispose();
+    };
+  }, []);
 
   // ---- Gates (derived values live in src/constants.ts) --------------------
   const [isFallback, setIsFallback] = useState<boolean>(() => {
@@ -101,16 +116,14 @@ export default function App() {
     return projects.findIndex((x) => x?.id === p.id);
   };
 
-  const openProjectAtSlot = useCallback((slotIndex: number, screenRect: DOMRect) => {
+  const openProjectAtSlot = useCallback((slotIndex: number, _screenRect: DOMRect) => {
     if (filteredProjects.length === 0) return;
     const project = projects[slotIndex];
     if (!project) return;
-    const filteredIndex = filteredProjects.findIndex((item) => item.id === project.id);
-    if (filteredIndex === -1) return;
-    setEnterFrom(screenRect);
-    setExpandedIdx(filteredIndex);
-    sceneRef.current?.setExpandedSlot(slotIndex);
-  }, [filteredProjects]);
+    // Work owns the canonical case-study URL and deep-link shell. Navigating
+    // there also guarantees the hero/About scene never mounts on direct entry.
+    window.location.assign(`/work/${encodeURIComponent(project.id)}`);
+  }, [filteredProjects.length]);
 
   const activateCardSlot = useCallback((slotIndex: number) => {
     if (!availableCardSlotIndices.has(slotIndex)) return;
@@ -142,8 +155,7 @@ export default function App() {
 
   // ---- Scene + ScrollTrigger (gated) -----------------------------------
   useEffect(() => {
-    if (!triggerRef.current || !containerRef.current) return;
-    const lifecycle = new SceneLifecycleManager();
+    if (!lifecycle || !triggerRef.current || !containerRef.current) return;
     const scene = new SphereScene(containerRef.current, lifecycle.renderer.domElement);
     sceneRef.current = scene;
     (window as unknown as { __sphere?: SphereScene }).__sphere = scene;
@@ -330,11 +342,41 @@ export default function App() {
       scene.setVignetteEl(null);
       unregisterScene();
       scene.dispose();
-      lifecycle.dispose();
       sceneRef.current = null;
       delete (window as unknown as { __sphere?: unknown }).__sphere;
     };
-  }, [isFallback, openProjectAtSlot]);
+  }, [isFallback, lifecycle, openProjectAtSlot]);
+
+  // The browser resolves a post-pin anchor before effects create the About pin.
+  // Re-resolve after the pin/fallback layout has committed so both routes land correctly.
+  useEffect(() => {
+    let frameA = 0;
+    let frameB = 0;
+    let postPinTimer = 0;
+    const alignPostPinHash = () => {
+      const targetId = window.location.hash.slice(1);
+      if (targetId !== "work" && targetId !== "close") return;
+      cancelAnimationFrame(frameA);
+      cancelAnimationFrame(frameB);
+      frameA = requestAnimationFrame(() => {
+        const align = () => document.getElementById(targetId)?.scrollIntoView({ block: "start" });
+        frameB = requestAnimationFrame(() => {
+          align();
+          // ScrollTrigger's initial pin refresh can land after the browser's
+          // native hash jump. One post-layout alignment covers cold deep links.
+          postPinTimer = window.setTimeout(align, 180);
+        });
+      });
+    };
+    alignPostPinHash();
+    window.addEventListener("hashchange", alignPostPinHash);
+    return () => {
+      cancelAnimationFrame(frameA);
+      cancelAnimationFrame(frameB);
+      window.clearTimeout(postPinTimer);
+      window.removeEventListener("hashchange", alignPostPinHash);
+    };
+  }, [isFallback]);
 
   useEffect(() => {
     const st = stRef.current;
@@ -530,7 +572,7 @@ export default function App() {
           border: "1px solid rgba(255,255,255,0.55)",
           background: "#000",
           color: "#EDEDF0",
-          fontFamily: "system-ui, sans-serif",
+          fontFamily: LABEL_FONT_FAMILY,
           fontSize: 13,
           textDecoration: "none",
           transform: skipLinkFocused ? "translateY(0)" : "translateY(-160%)",
@@ -623,14 +665,14 @@ export default function App() {
             zIndex: 3,
           }}
         >
-          <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", userSelect: "none" }}>
+          <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", userSelect: "none" }}>
             Raed Siddiqui
           </div>
           <nav aria-label="Primary" style={{ display: "flex", alignItems: "center", gap: 18, pointerEvents: "auto" }}>
-            <a href="#work" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Work</a>
-            <a href="#lab" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Lab</a>
-            <a href="#about" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>About</a>
-            <a href="#contact" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Contact</a>
+            <a href="#work" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Work</a>
+            <a href="#lab" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Lab</a>
+            <a href="#about" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>About</a>
+            <a href="#contact" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Contact</a>
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 10, pointerEvents: "auto" }}>
             <button
@@ -670,15 +712,14 @@ export default function App() {
               )}
             </button>
             <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
+              href="#close"
               style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 height: 34, padding: "0 15px", borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.14)",
                 background: "rgba(255,255,255,0.08)",
                 color: "rgba(255,255,255,0.92)",
-                fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em",
+                fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em",
                 textDecoration: "none",
                 opacity: expandedIdx !== null ? 0 : 1,
                 pointerEvents: expandedIdx !== null ? "none" : "auto",
@@ -705,9 +746,9 @@ export default function App() {
             style={{
               margin: 0,
               color: "rgba(255,255,255,0.96)",
-              fontFamily: "system-ui, sans-serif",
+              fontFamily: DISPLAY_FONT_FAMILY,
               fontSize: "clamp(28px, 4.2vw, 44px)",
-              fontWeight: 800,
+              fontWeight: 700,
               lineHeight: 1.02,
               letterSpacing: "-0.03em",
               textWrap: "balance",
@@ -725,13 +766,13 @@ export default function App() {
                 border: "1px solid rgba(255,255,255,0.18)",
                 background: "rgba(255,255,255,0.08)",
                 color: "rgba(255,255,255,0.94)",
-                fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 500,
+                fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500,
                 textDecoration: "none",
               }}
             >
               View selected work ↓
             </a>
-            <span style={{ color: "rgba(255,255,255,0.42)", fontFamily: "system-ui, sans-serif", fontSize: 12, letterSpacing: "0.04em" }}>
+            <span style={{ color: "rgba(255,255,255,0.42)", fontFamily: LABEL_FONT_FAMILY, fontSize: 12, letterSpacing: "0.04em" }}>
               {isFallback ? "Craft that holds up close" : "Scroll to reveal the wall"}
             </span>
           </div>
@@ -745,7 +786,7 @@ export default function App() {
             right: 16, bottom: 14,
             display: "inline-flex", alignItems: "center", gap: 8,
             color: "rgba(255,255,255,0.42)",
-            fontFamily: "system-ui, sans-serif", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
+            fontFamily: LABEL_FONT_FAMILY, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
             pointerEvents: "none", userSelect: "none",
             opacity: onboardingHidden ? 0 : 1,
             transform: onboardingHidden ? "translateY(4px)" : "translateY(0)",
@@ -779,8 +820,8 @@ export default function App() {
               borderRadius: 0,
               overflow: "visible",
               color: "rgba(255,255,255,0.96)",
-              fontFamily: "system-ui, sans-serif",
-              fontWeight: 900,
+              fontFamily: DISPLAY_FONT_FAMILY,
+              fontWeight: 700,
               lineHeight: 0.98,
               letterSpacing: "-0.01em",
               textWrap: "balance",
@@ -792,7 +833,7 @@ export default function App() {
                 top: "-2.4em",
                 left: 0,
                 color: "rgba(255,255,255,0.52)",
-                fontFamily: "system-ui, sans-serif",
+                fontFamily: LABEL_FONT_FAMILY,
                 fontSize: "clamp(12px, 1vw, 15px)",
                 fontWeight: 600,
                 letterSpacing: "0.14em",
@@ -806,7 +847,7 @@ export default function App() {
             <div>Engineering</div>
             <div>at the edge of</div>
             <div>AI and</div>
-            <span style={{ background: "linear-gradient(90deg, #444343 0%, #707070 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent", display: "inline-block", fontWeight: 900 }}>automation</span>
+            <span style={{ background: "linear-gradient(90deg, #444343 0%, #707070 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent", display: "inline-block", fontWeight: 700 }}>automation</span>
           </div>
           {/* BC — bio + contact stacked, small underlined links beneath bio */}
           <div
@@ -827,7 +868,7 @@ export default function App() {
               style={{
                 margin: 0,
                 color: "rgba(255,255,255,0.58)",
-                fontFamily: "system-ui, sans-serif",
+                fontFamily: DISPLAY_FONT_FAMILY,
                 fontSize: "inherit",
                 fontWeight: 400,
                 lineHeight: 1.35,
@@ -841,7 +882,7 @@ export default function App() {
                 href="mailto:raedsiddiquie4@gmail.com"
                 style={{
                   color: "rgba(255,255,255,0.72)",
-                  fontFamily: "system-ui, sans-serif",
+                  fontFamily: DISPLAY_FONT_FAMILY,
                   fontSize: 16,
                   fontWeight: 500,
                   letterSpacing: "0.02em",
@@ -859,7 +900,7 @@ export default function App() {
                 rel="noopener noreferrer"
                 style={{
                   color: "rgba(255,255,255,0.72)",
-                  fontFamily: "system-ui, sans-serif",
+                  fontFamily: DISPLAY_FONT_FAMILY,
                   fontSize: 16,
                   fontWeight: 500,
                   letterSpacing: "0.02em",
@@ -879,29 +920,15 @@ export default function App() {
       {/* Gate flip: fallback renders conventional About; otherwise the wall itself is the About (§2, §15) */}
       <div id="after-hero" tabIndex={-1}>
         {isFallback ? (
-          <FallbackAbout />
+          <>
+            <FallbackAbout />
+            {lifecycle && <WorkSection lifecycle={lifecycle} />}
+          </>
         ) : (
-          <section
-          style={{
-            minHeight: "60vh",
-            padding: "80px 40px",
-            background: "#000",
-            color: "rgba(255,255,255,0.58)",
-            fontFamily: "system-ui, sans-serif",
-          }}
-        >
-          <div style={{ maxWidth: 640 }}>
-            <p style={{ margin: 0, fontSize: 13, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.4 }}>— Next section</p>
-            <p style={{ marginTop: 16, lineHeight: 1.6, fontSize: 15 }}>
-              The wall above has settled — cover-framed, stroke-free, single unsliced BW portrait, HTML zones flush with zero padding/radius.
-              Wall unpinned and scrolling away. WebGL pauses once off-screen.
-            </p>
-          </div>
-          </section>
+          lifecycle && <WorkSection lifecycle={lifecycle} />
         )}
       </div>
-
-      <div style={{ height: isFallback ? "0" : "40vh", background: "#000" }} />
+      <ClosingSection />
 
       {expandedProject && expandedIdx !== null && (
         <ProjectPanel

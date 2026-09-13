@@ -1,6 +1,15 @@
 import * as THREE from "three";
 import type { Project } from "../types";
-import { CARD_FILL_COLOR, PHOTO_PLACEHOLDER_SRC, PHOTO_FINAL_SRC } from "../constants";
+import {
+  CARD_FILL_COLOR,
+  COMING_SOON_IMAGE_SRC,
+  PHOTO_PLACEHOLDER_SRC,
+  PHOTO_FINAL_SRC,
+  THUMBNAIL_ATLAS_AVIF_SRC,
+  THUMBNAIL_ATLAS_COLUMNS,
+  THUMBNAIL_ATLAS_ROWS,
+  THUMBNAIL_ATLAS_WEBP_SRC,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Asset pipeline — closing-pass rebuild (spec §4 final):
@@ -122,7 +131,7 @@ function loadRealComingSoonTexture(): Promise<THREE.Texture> {
   comingSoonPromise = new Promise((resolve) => {
     const loader = new THREE.TextureLoader();
     loader.load(
-      "/img/coming-soon.jpg",
+      COMING_SOON_IMAGE_SRC,
       (tex) => {
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.minFilter = THREE.LinearFilter;
@@ -245,6 +254,8 @@ export const PHOTO_PLACEHOLDER_SRC_EXPORT = PHOTO_PLACEHOLDER_SRC;
 
 const thumbCache = new Map<string, THREE.Texture>();
 const thumbInflight = new Map<string, Promise<THREE.Texture>>();
+let thumbnailAtlas: THREE.Texture | null = null;
+let thumbnailAtlasPromise: Promise<THREE.Texture> | null = null;
 let scrollIntentFired = false;
 
 export function hasScrollIntent(): boolean {
@@ -319,9 +330,69 @@ export function getCachedThumbnail(id: string): THREE.Texture | undefined {
   return thumbCache.get(id);
 }
 
+/** Single texture bound by both spherical views; card geometry supplies its own atlas UVs. */
+export function getThumbnailAtlas(): THREE.Texture {
+  if (thumbnailAtlas) return thumbnailAtlas;
+  // The final atlas replaces this separate fallback texture rather than
+  // resizing an already-uploaded WebGL allocation.
+  thumbnailAtlas = new THREE.CanvasTexture(getComingSoonFallbackTexture().image as HTMLCanvasElement);
+  thumbnailAtlas.colorSpace = THREE.SRGBColorSpace;
+  thumbnailAtlas.minFilter = THREE.LinearFilter;
+  thumbnailAtlas.magFilter = THREE.LinearFilter;
+  thumbnailAtlas.generateMipmaps = false;
+  void loadThumbnailAtlas();
+  return thumbnailAtlas;
+}
+
+export function loadThumbnailAtlas(): Promise<THREE.Texture> {
+  if (thumbnailAtlasPromise) return thumbnailAtlasPromise;
+  thumbnailAtlasPromise = new Promise((resolve) => {
+    const loader = new THREE.TextureLoader();
+    const finish = (texture: THREE.Texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
+      if (thumbnailAtlas && thumbnailAtlas !== texture) {
+        thumbnailAtlas = texture;
+        resolve(texture);
+      } else {
+        thumbnailAtlas = texture;
+        resolve(texture);
+      }
+    };
+    loader.load(
+      THUMBNAIL_ATLAS_AVIF_SRC,
+      finish,
+      undefined,
+      () => loader.load(THUMBNAIL_ATLAS_WEBP_SRC, finish, undefined, () => resolve(getComingSoonTexture())),
+    );
+  });
+  return thumbnailAtlasPromise;
+}
+
+export function applyThumbnailAtlasUv(geometry: THREE.BufferGeometry, stableIndex: number) {
+  const column = stableIndex % THUMBNAIL_ATLAS_COLUMNS;
+  const row = Math.floor(stableIndex / THUMBNAIL_ATLAS_COLUMNS);
+  applyUvWindow(geometry, column / THUMBNAIL_ATLAS_COLUMNS, (column + 1) / THUMBNAIL_ATLAS_COLUMNS, (THUMBNAIL_ATLAS_ROWS - row - 1) / THUMBNAIL_ATLAS_ROWS, (THUMBNAIL_ATLAS_ROWS - row) / THUMBNAIL_ATLAS_ROWS);
+}
+
+export function applyUvWindow(geometry: THREE.BufferGeometry, u0: number, u1: number, v0: number, v1: number) {
+  const uv = geometry.getAttribute("uv") as THREE.BufferAttribute;
+  const baseUv = (geometry.userData.baseUv ??= Array.from(uv.array as Float32Array)) as number[];
+  for (let index = 0; index < uv.count; index++) {
+    const u = baseUv[index * 2];
+    const v = baseUv[index * 2 + 1];
+    uv.setXY(index, THREE.MathUtils.lerp(u0, u1, u), THREE.MathUtils.lerp(v0, v1, v));
+  }
+  uv.needsUpdate = true;
+}
+
 export function __resetThumbnailPipeline(): void {
   thumbCache.clear();
   thumbInflight.clear();
+  thumbnailAtlas = null;
+  thumbnailAtlasPromise = null;
   scrollIntentFired = false;
   comingSoonTexture = null;
   comingSoonPromise = null;

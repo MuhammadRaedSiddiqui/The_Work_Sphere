@@ -1,5 +1,16 @@
 # Scroll-Driven Sphere-to-Screen Transition — Hero → About Section
 
+> **Implementation alignment — 2026-08-30.** This document now records the shipped
+> implementation. It supersedes older “pending portrait”, “retired eyebrow”, inset-photo,
+> and Email/Index references below wherever they remain in historical decision notes.
+
+> **Amendment — 2026-09-02.** The section that follows this wall at pin-end is now
+> specified: `work-section-spec.md`, an unpinned Index/Specimen section presenting the same
+> 48 projects. It consumes this document's decoupled index mapping and ring table (§8) and
+> adopts its progress-keyed-over-time-keyed principle. Numeric constants shared across all
+> three specs now live in `src/config/constants.ts` — ownership table in work spec §0.
+> The ring table remains owned here; its *number* lives in that module.
+
 **Final.** Companion spec to `3d-sphere-cta-prompt.md`, not a standalone page. Covers what happens when a visitor scrolls past the hero sphere: the 48 cards dismantle from their spherical arrangement and reassemble into a flat 8×6 grid that fills the viewport and functions as the About section's actual display surface — the content's medium, the way a real LCD video wall's individual screens combine into one canvas. Scrolling back up reverses it. The transition runs only when the entry gates pass (§7, §15); otherwise the section uses the conventional fallback (§15).
 
 **Prerequisites from the homepage spec:** the card system (48 cards, ring layout) and its wireframe connector lines; the camera-dolly + orientation-slerp technique from the inside/outside toggle (reused here with different framing, §10); the "3D spectacle, then hand off to 2D content" pattern from click-to-expand (refined into panel-anchored content). The homepage spec's scroll section defers the at-sphere case to this document.
@@ -16,34 +27,35 @@ Card world-space aspect is **3:2** (owned by the homepage spec §2), making the 
 ### 4. Content Model — Full-Bleed Video Wall
 The cards are the section, not decoration behind it. The full-bleed claim holds within the zone-visibility gate (§7): whenever the gate passes, the wall covers the viewport; when it fails, the section falls back (§15). All zone content — text and photo alike — renders with **zero padding and zero border-radius, flush to its projected cell rect**. No zone carries its own visible container: no card chrome, no inset margin, no rounded corners. The wall's seamlessness is the whole premise; a zone with its own visible boundary breaks it as surely as a visible card seam would. Settled state, by content type:
 
-- **Photo (portrait):** a **single unsliced image spanning the photo zone** — one texture covering the zone's aggregate rect, no per-card UV-inset seams, no bezel. A tiled face reads as a defect, not a motif. Treatment is **full black-and-white conversion with genuine tonal range** — real highlight and shadow detail from actual photography. The image is the only zone that ever shows imagery once settled; its mapping is computed once at build/load against final grid coordinates, independent of the flight interpolation. Edge strokes on all cards — photo zone included — fade to exactly zero in State 5 (§6) like every other zone; there are no retained seam gaps to preserve.
-  - **Asset status:** no final portrait exists yet. A photography brief (separate document) is sourcing the real image externally. An AI-generated reference was used only to direct lighting/pose/crop and is explicitly **not** a final asset — see §16 for the implementation guard that must prevent it from shipping by omission.
-- **Text (headline, bio, contact):** real, selectable HTML, absolutely positioned and sized to the on-screen projected bounding box of its assigned block — with the narrowly-scoped headline/bio overflow documented in §5. Cards underneath are solid black permanently — their final resting state, never a thumbnail. Their seams fade fully invisible in State 5; text sits on a clean uniform surface. Headline is sized to **dominate** the frame (see §5) — four lines at the heaviest available display weight, final line dimmed as a trailing-off device; bio sits beneath at secondary weight (up to two lines at wall scale); Email/Index sit below the bio as small quiet links each with an underline. No tag line — the T zone is cut entirely, not relocated to cards or header; the zone is unzoned black, full stop.
+- **Photo (portrait):** a **single continuous image spanning the photo zone**. One shared texture covers the aggregate P rect; each card receives its matching UV sub-rectangle, with zero settled spacing and no visible bezel or seam. A tiled face reads as a defect, not a motif. Treatment is **full black-and-white conversion with genuine tonal range** — real highlight and shadow detail from actual photography. The image is the only zone that ever shows imagery once settled; its mapping is computed once at build/load against final grid coordinates, independent of the flight interpolation. Edge strokes on all cards — photo zone included — fade to exactly zero in State 5 (§6) like every other zone; there are no retained seam gaps to preserve.
+  - **Asset status:** the final production asset is `/img/about-portrait.png`, a pre-processed black-and-white PNG with transparency. It is loaded directly as PNG (never converted to JPG), and its transparent pixels reveal the site's true-black (`#000`) canvas. A visible load-failure placeholder is retained only for an unsuccessful image request.
+- **Text (headline, bio, contact):** real, selectable HTML, absolutely positioned and sized to the on-screen projected bounding box of its assigned block — with the narrowly-scoped headline/bio overflow documented in §5. Cards underneath are solid black permanently — their final resting state, never a thumbnail. Their seams fade fully invisible in State 5; text sits on a clean uniform surface. The headline is sized to **dominate** the frame — four lines at the heaviest available display weight, with the final line dimmed as a trailing-off device. The eyebrow **“01 — THE PRACTICE”** sits directly above it. Bio sits beneath at secondary weight (up to two lines at wall scale); **Email** and **Resume** sit below as small, underlined links. Email uses `mailto:raedsiddiquie4@gmail.com`; Resume opens `https://www.linkedin.com/in/raedsiddiquie/` in a new tab. No tag line — the T zone is cut entirely, not relocated to cards or header; the zone is unzoned black, full stop.
 - **Unzoned:** solid black, identical to text-zone cards, nothing layered on top.
 
 ### 5. Content Zone Mapping — Inset, Crop-Safe (Editorial / Type-Led)
-**The constraint is law: every zone's card footprint sits inside rows 1–4, cols 1–6.** The full outer ring (rows 0 and 5, cols 0 and 7) is unzoned black and exists to be cropped by cover framing (§7, §10). Three zones — **photo (P), headline (H), and a combined bio+contact block (BC)**. No T zone — the tag line is cut, the zone is unzoned black, full stop. The former eyebrow (E) is retired; its signal is carried by the headline's weight and the portrait.
+The implemented wall has three card zones — **photo (P), headline (H), and combined bio+contact (BC)** — plus an eyebrow rendered within H rather than as its own card zone. There is no T zone. Unlike the earlier fully inset proposal, P deliberately reaches the top, right, and bottom wall edges; the visibility gate makes that edge bleed safe. H and BC remain inset from the left edge.
 
-Nominal split: photo takes the **right 2 of the 6 zoned columns** at full zoned height; headline + bio/contact take the **left 4 columns**. Photo column target is **~1/3 of the zoned width** (2 / 6). At site scale this reads as a generous portrait column, not a narrow strip, with the remaining ~2/3 split between text and gutter.
+Nominal split: P takes the **right 3 columns at full wall height**. H and BC each occupy the **left 4 columns**, starting in column 1. The portrait therefore reads as a tall right-hand column while retaining a one-column gutter before the text.
 
 ```
- .  .  .  .  .  .  .  .
- .  H  H  H  H  P  P  .
- .  H  H  H  H  P  P  .
- .  H  H  H  H  P  P  .
- .  B  B  B  B  P  P  .
- .  .  .  .  .  .  .  .
+ .  .  .  .  .  P  P  P
+ .  .  .  .  .  P  P  P
+ .  H  H  H  H  P  P  P
+ .  .  .  .  .  P  P  P
+ .  BC BC BC BC P  P  P
+ .  .  .  .  .  P  P  P
 ```
 
 Nominal card footprints (row-major, 8×6):
 
-- **P — portrait column (photo):** 2 cols × 4 rows, rows 1–4, cols 5–6 → **8 cards**, single unsliced image spanning the aggregate rect (§4). Full black-and-white conversion with genuine tonal range — real highlight and shadow detail from actual photography. No seams, no bezel. Runs the visual height of the section as a tall column on the **right**.
-- **H — headline:** 4 cols × 1 row, row 1, cols 1–4 → **4 cards nominal**, but rendered as four wrapped lines at the **heaviest available display weight** (the 500-max used in early mockups was a prototyping-tool limit, not a design decision): **"Engineering" / "at the edge of" / "AI and" / "automation."** The **entire final line ("automation.") is dimmed** — same weight and typeface as the rest, at **~15% of base text lightness** — as a deliberate trailing-off device. H keeps its single-row footprint and **deliberately bleeds past the nominal cell boundary** via the narrowly-scoped §16 exception to carry four lines at target dominance (see row math below). The dimmed treatment applies to the whole line because it now wraps onto its own line; do not dim only the last word.
-- **BC — bio + contact (combined):** 4 cols × 1 row, row 4, cols 1–4 → **4 cards nominal**, but rendered HTML stacks **bio (up to two lines at wall scale, secondary/small weight, copy currently "I build autonomous agents and scalable platforms that replace manual overhead with intelligent code." — wording tunable, the one-/two-line constraint is not) above a contact row holding "Email" and "Index" as small quiet text, each with a **small underline beneath the text**.** The two fall inside the same projected block beneath the headline; they share BC's card footprint and are not separate zoned cards. BC also participates in the same bleed exception as H to carry its stack at wall scale.
 
-Zoned total nominally **16 cards (8 P + 4 H + 4 BC) / 32 unzoned** — the rendered headline and bio/contact visibly occupy the left column's full height via the overflow, but their card footprints remain single-row.
+- **P — portrait column (photo):** 3 cols × 6 rows, rows 0–5, cols 5–7 → **18 cards**. A single shared portrait texture is sampled by each card's calculated UV sub-rectangle, which forms one continuous image at zero settled spacing. It has no visible bezel or tiled seam. The transparent PNG is composited over true black.
+- **H — headline:** 4 cols × 1 row, row 2, cols 1–4 → **4 cards nominal**. The HTML is lifted 40px above its projected rect and deliberately overflows vertically to carry the eyebrow and four display lines: **“Engineering” / “at the edge of” / “AI and” / “automation”**. The full final line is dimmed. The eyebrow is uppercase, 12–15px, and sits above the headline; it is not a separate E zone.
+- **BC — bio + contact (combined):** 4 cols × 1 row, row 4, cols 1–4 → **4 cards nominal**. It stacks the two-line bio over a compact, underlined contact row: **Email** and **Resume**. The inter-item vertical gap is 10px and the block has no added top margin.
 
-**Row math — why the bleed exists (and why it is scoped):** four headline lines at heaviest weight, plus two bio lines, plus a contact row, do not fit inside four zoned rows without either this bleed or eating into the unzoned buffer rows. Eating the buffer — claiming row 0 and/or row 5 as zoned — was considered and rejected: it removes the 1-row crop buffer the §7 safe range was derived from, costing real device-compatibility range for no benefit. The chosen path is to **let the left-column content overflow its nominal single-row cell boundaries** vertically while keeping the card footprints inside rows 1–4. The cards stay where they are; the HTML is allowed `overflow: visible` beyond the projected box by a bounded bleed **δ ≈ 0.3 row-heights**, final. All other zones (P, unzoned, and any future zone) remain hard-constrained on both axes with `max-width`/`max-height` and line-height from projected row height; do not silently widen the exception. The gate in §7 is re-derived with this δ, and the implementation must verify that at both boundary aspect ratios the gate allows, the overflowed text rect does not intersect the photo zone's rect (left-column vs right-column separation guarantees this for horizontal, and the vertical bleed stays within the viewport's cropped outer rows at the gate limits — verify explicitly, do not assume).
+Zoned total is **26 cards (18 P + 4 H + 4 BC) / 22 unzoned**. The rendered headline and bio/contact visibly occupy more height than their single-row footprints through the scoped overflow.
+
+**Row math — scoped text overflow:** four display lines, an eyebrow, two bio lines, and the contact row do not fit their two nominal text rows. H and BC therefore use `overflow: visible`; their text is positioned from the projected card rects. H is lifted 40px as a complete stack, while BC follows immediately below its computed headline height. P is the only zone intentionally allowed to bleed to the wall edges; the gate in §7 checks it under that rule. The text blocks stay clear of P because they occupy columns 1–4 while P starts at column 5.
 
 Copy consequence, restated for the editorial direction: the wall is a typographic statement — headline dominates, bio is compact secondary weight, portrait carries the human presence. Longer copy belongs in the fallback or an expanded view, not on the wall. The ~1/3 photo / ~2/3 text+gutter split and the 15% dim are anchors at mockup scale — tune to the site's real type and color scale while preserving the dominance ratio and the heaviest-weight headline decision.
 
@@ -62,22 +74,9 @@ Cards keep their thumbnails throughout flight; the swap to black is an animated 
 Reversal plays this exactly backward: content out + strokes boost back (5→4), black back to thumbnails in arrived positions (4→3), thumbnails carried back into flight (3→2), resettling into the sphere (1). Continuous properties (position, rotation, spacing, camera) track the scrub linearly; States 3–5 are the authored exceptions.
 
 ### 7. Zone-Visibility Gate
-Cover framing crops outer rows/columns first on aspect mismatch. Re-derived from the **new §5 three-zone map**.
+The implementation keeps the existing aspect band **1.65 ≤ viewport width / height ≤ 2.61** and uses a 60° camera FOV with axis-fit cover framing. It evaluates at initialization, debounced resize, and orientation changes; a change resets the section to progress 0 and selects or removes the fallback pin.
 
-**Gate:** zoned card footprints remain rows 1–4, cols 1–6 — the outer ring (rows 0/5, cols 0/7) is still the full crop buffer, and P (cols 5–6, rows 1–4) stops at row 4 / col 6 exactly as before. But the rendered HTML rects for H/BC extend beyond their nominal single-row cells by a bounded bleed **δ ≈ 0.3 row-heights, final** (§5), via the narrowly-scoped §16 exception. Effective buffer therefore shrinks to **1 − δ rows per side vertically and 1 − δ columns per side horizontally**.
-
-With grid aspect **g = 2.0**, cropped depth is `3(v−g)/v` rows/side when viewport aspect v > g, and `4(g−v)/g` cols/side when v < g. Solving against the effective buffers:
-
-- Vertical (v > g): `3(v−g)/v = 1 − δ` → **v_max = 3g / (2 + δ)**
-- Horizontal (v < g): `4(g−v)/g = 1 − δ` → **v_min = g·(3 + δ)/4**
-
-For **δ ≈ 0.3, final**, this gives **v ∈ (1.65, 2.61)**. δ≈0.3 is the value; do not re-derive with a different δ without explicit rationale. The prior (1.5, 3.0) assumed strict cell containment with no bleed and is superseded; the intermediate (1.5, 2.61) assumed vertical-only bleed and is also superseded.
-
-Every laptop, desktop, and moderate ultrawide within this band sees all zones; narrower tablet-landscape (~1.33) and portrait phones (~0.5) fail horizontally, very wide ultrawides (>2.61) fail vertically, both correctly falling back (§15) as intended.
-
-**Verification required:** at both boundary aspects the gate allows, project the photo zone's rect and the **actual overflowed HTML rects** for H/BC (nominal cells + δ) and confirm they do not intersect. With the left-4 / right-2 column split they are separated by a full gutter column, so no collision occurs — but this must be checked explicitly against the chosen δ and the final type scale, not assumed.
-
-**Mechanics:** run the cover-framing math, project each zone's bounding rect (for H/BC the rect **includes** the bleed δ ≈ 0.3; for P it is the card aggregate rect of the single unsliced texture), fail the gate if any rect extends outside the viewport minus an 8px safety margin. Evaluate at init, on debounced resize, and on `orientationchange`. If the result flips mid-session, reinitialize the section in the new mode at progress 0. The pin (§2) is only created when this gate passes together with the §15 gates.
+Each zone's aggregate card bounds are projected to screen. H and BC are expanded by the configured `δ ≈ 0.3` row-height overflow before testing. They must remain inside an 8px safety margin. P is intentionally full bleed (3 columns × 6 rows), so it is allowed to meet or be cropped by the top, right, and bottom viewport edges; it only fails if it is completely off-screen. The aspect limits, overlay dimensions, and the 40px H lift should be visually re-verified together whenever the type scale or zone map changes.
 
 ### 8. Target Layout — Decoupled Index Mapping
 Sphere placement and grid placement are fully decoupled. Each card gets one stable index (0–47) at initialization, driving two independent calculations:
@@ -120,7 +119,7 @@ All keyed off the same progress value — no separate scroll listener.
 | Cards in tab order | ✓ hero §14 | Removed at p > 0.02 | Removed | Removed |
 | Inside/outside toggle | ✓ | Hidden by 0.10 | Hidden | Hidden |
 | Escape | Closes expanded | no-op | no-op | no-op |
-| C1 / C2 buttons | — | — | — | Live from **p ≥ 0.82** |
+| Email / Resume links | — | — | Live from **p ≥ 0.82** | Live |
 | Scroll | Scrubs | Scrubs | Scrubs | Scrubs to 1.0, then unpins (§15) |
 
 - The **0.02 epsilon** tolerates pointer/scroll jitter at the boundary.
@@ -129,7 +128,7 @@ All keyed off the same progress value — no separate scroll listener.
 - **Photo zone when settled:** scenery, not navigation — not clickable.
 
 ### 15. Pin-End Handoff, Risk & Fallback
-**Pin-end:** the About wall is exactly one viewport of content; nothing scrolls inside it. At p = 1 the pin releases and the wall **unpins and scrolls away like an ordinary section**, the next section following beneath. All zone HTML lives **inside the pinned wrapper**. WebGL rendering **pauses once the wall is fully off-screen**, resumes on re-entry. C1/C2 remain live during the scroll-away.
+**Pin-end:** the About wall is exactly one viewport of content; nothing scrolls inside it. At p = 1 the pin releases and the wall **unpins and scrolls away like an ordinary section**, the next section following beneath. **That next section is the Work section** (`work-section-spec.md`), which is deliberately unpinned and unscrubbed — the page budget is one pinned section and this one spends it. Two hijacked sections back to back compound badly, and keeping Work conventional also means it stays fully usable in the fallback path below, where this pin was never created. All zone HTML lives **inside the pinned wrapper**. WebGL rendering **pauses once the wall is fully off-screen**, resumes on re-entry. Email and Resume remain live during the scroll-away.
 
 **Risk:** highest-risk piece of the system; budget real testing time for feel, not just function. Scroll-hijacking is easy to get wrong on mobile Safari and trackpads, and this transition syncs many properties off one progress value. Build order: get position lerp + spacing + cover camera on a scrub working first. iOS Safari pinning needs real-device time specifically.
 
@@ -137,9 +136,9 @@ All keyed off the same progress value — no separate scroll listener.
 
 **Fallback layout:**
 - **The pin is never created** — gate the ScrollTrigger construction itself, not just the animation. Hero takes its natural 100vh height; no pin spacer, no scrub listener.
-- **One content source, two layouts:** the zone content is the same real HTML used by the WebGL mode, restyled with conventional CSS instead of projected coordinates. Nothing duplicated; SEO and screen readers get the content either way. Tag line (T) is not rendered in either layout — it was cut entirely in the editorial direction (§4–§5), not relocated.
-- **Photo:** a single normal image spanning its column (not a mosaic, not tiled), **full black-and-white conversion with genuine tonal range — real highlight and shadow detail from actual photography, per §4**. Gated behind real-asset availability per §16; if the real portrait is not yet delivered, render an explicit placeholder state — do not ship the AI-generated reference as if it were final.
-- **Layout:** desktop — two columns, **text stack left, photo right** (mirrors the primary WebGL wall's left-dominant headline / right portrait column, §5). Prior fallback spec had this reversed (photo left, text right); that is corrected here so fallback does not contradict the primary editorial layout — fallback column order matches primary, per the settled decision. If an intentional divergence were desired, it would need explicit rationale — none is claimed. Mobile — single-column stack, photo first (top). Same dark theme; Email/Index retain the small underline treatment from §5.
+- **Two matching layouts:** the fallback currently uses separate, equivalent React markup rather than the same DOM nodes as the WebGL overlay. It mirrors the wall copy, eyebrow, photo, and links. Tag line (T) is not rendered in either layout.
+- **Photo:** a normal `<img>` uses `/img/about-portrait.png`; it is a black-and-white PNG with transparency over the true-black section background. An explicit canvas placeholder is shown only if loading fails.
+- **Layout:** desktop — two columns, **text stack left, photo right**, with a 1.1fr / 0.9fr split and 24px gap. At widths below 760px it becomes a single column with the photo first. Email and Resume retain the small underline treatment from §5.
 - **Entrance:** none, or a single opacity fade.
 
 ### 16. Implementation Notes
@@ -149,14 +148,14 @@ All keyed off the same progress value — no separate scroll listener.
 - **Capture live state at scroll start (§11):** read camera position/quaternion and fog off the live objects; interrupt a mid-flight toggle rather than letting both drive the camera.
 - **Arrival fade:** genuine opacity/material animation keyed to 0.62–0.74, triggered at arrival, not departure. Text-zone and unzoned indices should **never be assigned** a thumbnail or photo texture past State 3 — don't assign-then-hide.
 - **Edge strokes:** authored keyframes — boost 0.74–0.82, ease to **exactly 0** during 0.82–0.94 on all cards. Verify the ease-down is wired and targets 0, not a static or nonzero value.
-- **Photo (portrait):** single unsliced texture stretched across the photo zone's aggregate rect (§4) — no per-card UV sub-rects, no bezel inset, no tiled seams. Mapping computed once at build/load against final grid coordinates. **Asset guard:** the photo texture source must not silently default to the AI-generated reference file. Either gate the photo zone behind a real-asset-available check with an explicit placeholder state (e.g. solid black or typographic placeholder until the real photograph is delivered), or block this piece of implementation entirely until the real asset lands — do not ship the generated face as if it were final by omission. Any silent fallback to the reference image is a build failure; see Asset Status below and §4.
+- **Photo (portrait):** the shared `/img/about-portrait.png` texture is mapped to each P card with a calculated UV sub-rectangle. This preserves one continuous portrait across the aggregate P rect when settled; spacing and strokes resolve to zero, so it reads as one image rather than a tiled mosaic. Mapping is calculated once at build/load. The texture loader uses a visible error placeholder if the PNG cannot load.
 - **Text zones:** project the four corner cards of each block; position the HTML to match; hard-constrain both axes (`max-width`/`max-height`), and derive line-height from projected row height. Verify the bio on narrow widths within the gate band. **Narrowly-scoped bleed exception (final — §5):** H and BC are allowed `overflow: visible` with bleed **δ ≈ 0.3 row-heights, final**, to carry the four-line headline and the bio+contact stack at target dominance. This exception is scoped to H/BC only and the §7 gate is re-derived with that δ; all other zones (P, unzoned) remain hard-constrained — do not silently widen or remove the guard.
 - **Zone content bleed — zero padding / zero radius (all zones):** every zone's root element renders with **padding: 0, border-radius: 0**, sized and positioned to exactly match its projected cell rect, nothing else. No zone carries its own visible container. If a shared component (a generic "photo card" or similar) is being reused for zone content, either strip these properties for this specific use or don't reuse that component — a component built for bounded, padded contexts will not become flush by accident.
 - **Cover framing (§10):** axis-fit `min` distance; recompute on resize in the same handler that re-runs the §7 gate.
 - **Scroll-handler routing:** four routes — fallback (no handler), sphere, mid-transition, expanded project.
 - **Easing:** continuous properties linear to the scrub; §6 beats are the deliberate authored exceptions.
 
-**Asset Status — Portrait:** no final portrait exists yet. A photography brief (separate document, already written) is sourcing the real image externally. Do not treat the AI-generated reference — used only to direct lighting/pose/crop — as final under any circumstances, including as a placeholder left in past a review. That omission is exactly what the §16 asset guard is meant to prevent; the photo zone must remain gated or blocked until the real asset is delivered.
+**Asset Status — Portrait:** `/public/img/about-portrait.png` is present and is the production source. It is loaded as PNG and not converted or live-filtered. Its alpha channel intentionally reveals the true-black page and scene background.
 
 ### 17. Settled Decisions
 - Pin-and-scrub, smoothed (`scrub ≈ 0.6`), ~4× viewport pin distance (§2).
@@ -165,14 +164,16 @@ All keyed off the same progress value — no separate scroll listener.
 - Unzoned cells resolve to solid black identically to text-zone cards; only the photo zone reveals imagery (§4, §6).
 - Thumbnails persist through flight; swap to black is a post-arrival animated fade — the two-beat arrival (§6).
 - Card aspect 3:2 → grid aspect 2.0; the gate's reference value (§3).
-- Zone map inset to rows 1–4 / cols 1–6; outer ring is unzoned crop buffer (§5).
+- Zone map is P `(rows 0–5, cols 5–7)`, H `(row 2, cols 1–4)`, and BC `(row 4, cols 1–4)`; P is intentionally full-bleed on the top/right/bottom edges (§5).
 - Zone-visibility gate with safe band **v ∈ (1.65, 2.61) for δ≈0.3, final** (§7); mid-session flip reinitializes at progress 0 (§7). Prior (1.5, 3.0) assumed strict cell containment and is superseded.
 - Decoupled index mapping; fixed ring table `[4,8,12,12,8,4]` owned here (§8).
 - Spacing interpolates to zero; axis-fit cover framing; start state read from live scene (§9–§11).
 - Lines/fog/vignette fade to nothing in lockstep with spacing; background unaffected (§12).
 - Overlay UI keyed to progress; toggle hidden by 0.10; hero headline gone by 0.12 (§13).
 - Interaction routing: drag/click/tab locked past 0.02; buttons live from 0.82 (§14).
-- Pin end unpins and scrolls away; render pauses off-screen (§15).
+- Pin end unpins and scrolls away; render pauses off-screen (§15). The section beneath is the unpinned Work section — one pinned section per page, spent here (§15).
+- 2026-09-02 — Ring table `[4,8,12,12,8,4]` and decoupled index mapping (§8) gain a third consumer: the Work section's Specimen globe assigns rings from the same stable index, so slot 0 sits in ring 0 in all three sections. Ownership stays here; the literal moves to `src/config/constants.ts` (work spec §0).
+- 2026-09-02 — The zone-visibility gate band and grid aspect are **derived** values and must be computed from card aspect, grid dimensions, FOV and δ with a dev-only assertion, not typed as literals — typing them is what let Appendix A corrections 3 and 4 go unnoticed (§3, §7, work spec §0).
 - Fallback skips the pin entirely and reuses the same content in conventional layout, photo right / text left matching primary (§15).
 - **Card roster:** all 48 slots filled (hero spec Appendix B) — no null/placeholder cards in production; the "coming soon" texture is retained only for degraded fallback. Flight therefore carries real thumbnails on every card until the post-arrival fade (§6).
 - **2026-08-28 — About-wall content direction: editorial / type-led (§4–§5, §7, §15–§16):** explored four directions (expanded bento grid, editorial/type-led, terminal/console, embedded interactive query panel); settled on **oversized, dominant headline on the left + large-format portrait as a tall column on the right**. Chosen for **typographic craft signal at the lowest build cost of the four**. Mechanism (pin-and-scrub, card dismantle/reform, state machine, fallback gating) unchanged — only what fills the zones and the zone map itself changed. This entry is superseded in detail by the 2026-08-29 finalization below; direction and rationale stand.
@@ -188,6 +189,8 @@ All keyed off the same progress value — no separate scroll listener.
 - **2026-08-29 — Contact treatment (§5, §15):** Email/Index each with a **small underline beneath the text**, sitting in the combined bio+contact zone below the bio — small quiet text beneath the bio, confirmed by what's already built and rendering correctly.
 - **2026-08-29 — Fallback column order (§15):** **photo right, text left**, matching primary layout (already corrected in prior pass; reaffirmed).
 - **2026-08-29 — Closing pass — all remaining open items resolved + zone-content bleed rule (§4–§5, §7, §15–§17):** **(1) portrait slicing** locked to single unsliced image spanning the zone — no UV-inset seams, no bezel (§4); **(2) portrait desaturation** locked to full black-and-white conversion with genuine tonal range — real highlight/shadow detail (§4–§5, §15); **(3) headline sizing** locked to single-row footprint with deliberate bleed via §16 exception, δ≈0.3 final, gate v ∈ (1.65, 2.61) — claiming two rows considered and rejected to Appendix A for costing buffer (§5, §7); **(4) C1/C2** locked to small quiet underlined text beneath the bio, confirmed built (§5); **(5) tag line** cut, no T zone, unzoned black (§5); **(6) zone content bleed** — all zones render flush with zero padding and zero border-radius to the projected cell rect, no visible container chrome (§4, §16).
+
+**2026-08-30 — implementation reconciliation:** the rendered zone map is P `(rows 0–5, cols 5–7)`, H `(row 2, cols 1–4)`, and BC `(row 4, cols 1–4)`. P therefore uses 18 cards and touches the top/right/bottom wall edges; H and BC use four cards each. The P texture is a continuous shared portrait assembled by per-card UV sub-rects at zero settled spacing. The delivered `/img/about-portrait.png` is the live production asset, transparent pixels reveal `#000`, and the eyebrow **“01 — THE PRACTICE”** is present inside H. Contact labels are **Email** and **Resume**; Resume opens the supplied LinkedIn profile in a new tab. These facts supersede older historical notes in this section that refer to an inset 8-card photo zone, a pending portrait, a retired eyebrow, Email/Index, or C1/C2.
 
 ### Appendix A — Decision Rationale & Build-Test Corrections
 Archaeology preserved from v1; the normative body above reads as if it were always true.
@@ -206,3 +209,5 @@ Archaeology preserved from v1; the normative body above reads as if it were alwa
 
 ## Related documents
 `3d-sphere-cta-prompt.md` — the homepage hero spec this document depends on (card system, ring geometry, connector lines, inside/outside toggle). This spec owns the ring-count table `[4,8,12,12,8,4]` and the device-tier gate definition lives in that document's §15.
+
+`work-section-spec.md` — the section this wall hands scroll to at pin-end (§15). It consumes the ring table and decoupled index mapping owned here (§8), reuses the progress-keyed beat principle (§6) for its detach lerp, and holds the shared-constants ownership table that this document's derived values are asserted against (work spec §0).

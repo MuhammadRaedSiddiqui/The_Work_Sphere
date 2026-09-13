@@ -16,8 +16,19 @@ import {
 } from "../constants";
 import { rotateToFaceCard, stepFaceRotation, type FaceRotation } from "./rotateToFace";
 import {
+  createSphereCardMaterial,
+  createSphereConnectorLines,
+  outsideFogDistances,
+  outsidePointerDelta,
+  solveOutsideCameraDistance,
+  SPHERE_DRAG_TO_RADIANS,
+  SPHERE_IDLE_RESUME_EPSILON,
+  SPHERE_IDLE_SPEED,
+  SPHERE_MOMENTUM_DECAY,
+  tangentQuaternion,
+} from "./sphereShared";
+import {
   cardSlots,
-  buildConnectorPairs,
   CARD_WIDTH,
   CARD_HEIGHT,
   SPHERE_RADIUS,
@@ -25,13 +36,13 @@ import {
   GRID_HEIGHT,
   gridPositions,
 } from "./layout";
-import { getComingSoonTexture, getPhotoTexture, getCachedThumbnail, loadThumbnailTexture, markScrollIntent, hasScrollIntent, preloadThumbnails } from "./textures";
+import { applyThumbnailAtlasUv, applyUvWindow, getPhotoTexture, getThumbnailAtlas, loadThumbnailAtlas, loadThumbnailTexture, markScrollIntent, hasScrollIntent, preloadThumbnails } from "./textures";
 import { projects } from "../data/projects";
 import type { Project } from "../types";
 
-const IDLE_SPEED = 0.045;
-const MOMENTUM_DECAY = 2.6;
-const IDLE_RESUME_EPS = 0.01;
+const IDLE_SPEED = SPHERE_IDLE_SPEED;
+const MOMENTUM_DECAY = SPHERE_MOMENTUM_DECAY;
+const IDLE_RESUME_EPS = SPHERE_IDLE_RESUME_EPSILON;
 const STROKE_OPACITY = IDLE_STROKE_OPACITY;
 const STROKE_BOOST = 0.9;
 const STROKE_BOOST_END = 0.78;
@@ -39,7 +50,6 @@ const LINE_OPACITY = CONNECTOR_LINE_OPACITY;
 const OUTSIDE_LINE_OPACITY = OUTSIDE_CONNECTOR_LINE_OPACITY;
 const ENTRANCE_DURATION = 0.9;
 
-const TOGGLE_TARGET_FRAC = 0.70;
 const TOGGLE_LERP_RATE = 5.5;
 const INSIDE_CAM_Z = 0.01;
 const FOG_INSIDE_NEAR = SPHERE_RADIUS * 1.6;
@@ -110,7 +120,6 @@ export class SphereScene {
   private tmpQTangent = new THREE.Quaternion();
   private tmpV = new THREE.Vector3();
   private tmpV2 = new THREE.Vector3();
-  private tmpV3 = new THREE.Vector3();
   private focusEuler = new THREE.Euler(0, 0, 0, "XYZ");
 
   // Colors for arrival fade — reused object to avoid alloc
@@ -185,10 +194,7 @@ export class SphereScene {
   toggleViewMode() { this.setViewMode(this.viewModeTarget === 1 ? "inside" : "outside"); }
 
   private computeOutsideDistance(): number {
-    const fovRad = (this.camera.fov * Math.PI) / 180;
-    const halfTan = Math.tan(fovRad / 2);
-    if (halfTan < 1e-6) return SPHERE_RADIUS * 2.5;
-    return SPHERE_RADIUS / (TOGGLE_TARGET_FRAC * halfTan);
+    return solveOutsideCameraDistance(this.camera.fov);
   }
   private computeCoverDistance(): number {
     // Axis-fit COVER (spec §10): distance = min(dHeightFit, dWidthFit)
@@ -203,8 +209,9 @@ export class SphereScene {
     return Math.min(dHeightFit, dWidthFit);
   }
   private updateOutsideFogValues() {
-    this.outsideFogNear = this.outsideDistance * 0.75;
-    this.outsideFogFar = this.outsideDistance * 1.85;
+    const fog = outsideFogDistances(this.outsideDistance);
+    this.outsideFogNear = fog.near;
+    this.outsideFogFar = fog.far;
   }
   private syncFogImmediate() {
     if (!(this.scene.fog instanceof THREE.Fog)) return;
@@ -278,46 +285,21 @@ export class SphereScene {
   private buildCards() {
     const baseGeometry = new THREE.PlaneGeometry(CARD_WIDTH, CARD_HEIGHT);
     const edgeGeometry = new THREE.EdgesGeometry(baseGeometry);
-    const soon = getComingSoonTexture();
+    const atlas = getThumbnailAtlas();
     const photoTex = getPhotoTexture();
 
     cardSlots.forEach((slot) => {
       const project = projects[slot.index];
       const isPhoto = PHOTO_INDICES.has(slot.index);
-      let geometry: THREE.PlaneGeometry = baseGeometry;
-
-      if (isPhoto) {
-        // Single unsliced portrait — continuous sub-rect per card, no inset, no bezel (§4 final).
-        // Computed once at build, not per-frame. The 8 cards together read as one seamless
-        // BW image bleeding to the top/right/bottom of its zone with zero border.
-        geometry = baseGeometry.clone() as THREE.PlaneGeometry;
-        const uvAttr = geometry.getAttribute("uv") as THREE.BufferAttribute;
-        const slice = photoSliceUV(slot.index)!;
-        for (let i = 0; i < uvAttr.count; i++) {
-          const u = uvAttr.getX(i);
-          const v = uvAttr.getY(i);
-          const nu = THREE.MathUtils.lerp(slice.u0, slice.u1, u);
-          const nv = THREE.MathUtils.lerp(slice.v0, slice.v1, v);
-          uvAttr.setXY(i, nu, nv);
-        }
-        uvAttr.needsUpdate = true;
-      }
+      const geometry = baseGeometry.clone() as THREE.PlaneGeometry;
+      applyThumbnailAtlasUv(geometry, slot.index);
 
       // Initial map is always coming-soon.jpg (progressive: render coming-soon first,
       // swap to full texture on load complete). Thumbnails are exactly 3:2, matching
       // card aspect, so plain UV full-face — no cover-crop/repeat math.
-      let materialMap: THREE.Texture | null = soon;
+      const materialMap: THREE.Texture | null = atlas;
 
-      const material = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        map: materialMap,
-        transparent: true, // must render AFTER the lines — opaque objects always render before transparent ones in Three.js
-        depthWrite: true, // cards still occlude each other correctly
-        polygonOffset: true,
-        polygonOffsetFactor: 1,
-        polygonOffsetUnits: 1,
-        fog: true,
-      });
+      const material = createSphereCardMaterial(materialMap);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.renderOrder = 0;
 
@@ -335,12 +317,7 @@ export class SphereScene {
       mesh.add(outline);
       this.scene.add(mesh);
 
-      let thumbMap: THREE.Texture | null = null;
-      if (project) {
-        thumbMap = materialMap;
-      } else {
-        thumbMap = null;
-      }
+      const thumbMap: THREE.Texture | null = project ? atlas : null;
 
       const ringStagger = slot.ring * 0.12;
       this.cards.push({
@@ -355,9 +332,19 @@ export class SphereScene {
     });
     // Keep photoTexture ready (warms the texture) — real featured 1600 loads in background
     void photoTex;
-    // Eagerly load thumbnails immediately (progressive: coming-soon first, swap when each loads).
-    // Swaps are gated to p<=0.02 so flight never pops, but idle p=0 shows real thumbs right away.
+    void loadThumbnailAtlas().then((loadedAtlas) => {
+      if (this.disposed) return;
+      this.cards.forEach((card) => {
+        card.thumbMap = loadedAtlas;
+        if (this.scrubP <= FLIGHT_END) {
+          const material = card.mesh.material as THREE.MeshBasicMaterial;
+          material.map = loadedAtlas;
+          material.needsUpdate = true;
+        }
+      });
+    });
     this.warmThumbnailsEagerly();
+    // The shared atlas upgrades in-place, so Hero and Specimen retain one texture binding.
   }
 
   /**
@@ -368,6 +355,7 @@ export class SphereScene {
    * still throttled. All swaps still gated to p≤0.02 in updateCards.
    */
   private warmThumbnailsEagerly(): void {
+    return;
     const realProjects = projects.filter((p): p is Project => !!p);
     const initial = realProjects.slice(0, 12);
     const remaining = realProjects.slice(12);
@@ -393,6 +381,7 @@ export class SphereScene {
   notifyScrollIntent(): void {
     if (hasScrollIntent()) return;
     markScrollIntent();
+    return;
     const realProjects = projects.filter((p): p is Project => !!p);
     void preloadThumbnails(realProjects, 4).then(() => {
       // After cache fills, eligible swaps happen in updateCards when safe
@@ -422,27 +411,13 @@ export class SphereScene {
   }
 
   private applyPendingThumbnailSwaps(): void {
-    if (this.scrubP > INTERACTION_LOCK_EPSILON) return;
-    for (const card of this.cards) {
-      const proj = projects[card.slot.index];
-      if (!proj) continue;
-      const cached = getCachedThumbnail(proj.id);
-      if (!cached || cached === card.thumbMap) continue;
-      card.thumbMap = cached;
-      // Only swap visible map if still in flight-safe window (thumbnails persist through flight)
-      if (this.scrubP <= FLIGHT_END) {
-        const mat = card.mesh.material as THREE.MeshBasicMaterial;
-        // Don't overwrite photo mosaic when settled
-        if (card.isPhoto && this.scrubP >= BLUEPRINT_END) continue;
-        mat.map = cached;
-        mat.needsUpdate = true;
-      }
-    }
+    return;
   }
 
   private buildConnectors(): { lines: THREE.LineSegments; basePositions: Float32Array; gridPositions: Float32Array; } {
-    const pairs = buildConnectorPairs();
-    const base = new Float32Array(pairs.length * 6);
+    const shared = createSphereConnectorLines(LINE_OPACITY);
+    const pairs = shared.pairs;
+    const base = shared.basePositions;
     const grid = new Float32Array(pairs.length * 6);
     pairs.forEach(([a, b], i) => {
       const pa = cardSlots[a].position;
@@ -452,19 +427,7 @@ export class SphereScene {
       const gb = gridPositions[b];
       grid.set([...ga, ...gb], i * 6);
     });
-    const geometry = new THREE.BufferGeometry();
-    const geometryPositions = new Float32Array(base);
-    geometry.setAttribute("position", new THREE.BufferAttribute(geometryPositions, 3));
-    const material = new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: LINE_OPACITY,
-      depthWrite: false,
-      depthTest: false, // drawn before anything; nothing to test yet
-      fog: true,
-    });
-    const lines = new THREE.LineSegments(geometry, material);
-    lines.renderOrder = -1; // put them at the head of the queue
+    const lines = shared.lines;
     this.scene.add(lines);
     return { lines, basePositions: base, gridPositions: grid };
   }
@@ -498,7 +461,7 @@ export class SphereScene {
     let dx = e.clientX - this.lastPointer.x;
     let dy = e.clientY - this.lastPointer.y;
     const isOutside = this.toggleProgress > 0.5;
-    if (isOutside) { dx *= -1; dy *= -1; }
+    if (isOutside) ({ dx, dy } = outsidePointerDelta(dx, dy));
     if (this.dragStart) {
       const totalDx = e.clientX - this.dragStart.x;
       const totalDy = e.clientY - this.dragStart.y;
@@ -510,7 +473,7 @@ export class SphereScene {
     this.lastPointer = { x: e.clientX, y: e.clientY, t: now };
   };
 
-  private readonly DRAG_TO_RAD = 0.005;
+  private readonly DRAG_TO_RAD = SPHERE_DRAG_TO_RADIANS;
 
   private onPointerUp = (e: PointerEvent) => {
     const wasDragging = this.dragging;
@@ -688,6 +651,8 @@ export class SphereScene {
       const mat = card.mesh.material as THREE.MeshBasicMaterial;
       const lineMat = card.outline.material as THREE.LineBasicMaterial;
 
+      /*
+
       // Safe thumbnail upgrade — real thumb swaps only when back at sphere (p≤0.02)
       // so flight never pops. Works for both eager idle loads and scroll-intent preloads.
       if (scrubP <= INTERACTION_LOCK_EPSILON) {
@@ -707,6 +672,7 @@ export class SphereScene {
           }
         }
       }
+      */
 
       // Stroke: idle → boosted (0.74–0.78 ramp to 0.9, hold to 0.82) → exactly 0 by 0.94
       // All cards participate; verification: ease-down targets 0, not idle (§16)
@@ -750,6 +716,7 @@ export class SphereScene {
         if (scrubP <= FLIGHT_END) {
           // Flight: keep thumbnail tinted white
           mat.color.copy(this.whiteColor);
+          applyThumbnailAtlasUv(card.baseGeometry, card.slot.index);
           if (mat.map !== card.thumbMap && card.thumbMap) {
             mat.map = card.thumbMap;
             mat.needsUpdate = true;
@@ -768,6 +735,8 @@ export class SphereScene {
           }
         } else if (scrubP <= REVEAL_END) {
           // Reveal: black → mosaic. Swap map to shared photo texture with inset UVs, fade color white
+          const slice = photoSliceUV(card.slot.index)!;
+          applyUvWindow(card.baseGeometry, slice.u0, slice.u1, slice.v0, slice.v1);
           if (mat.map !== getPhotoTexture()) {
             mat.map = getPhotoTexture();
             mat.needsUpdate = true;
@@ -776,6 +745,8 @@ export class SphereScene {
           mat.color.lerpColors(this.blackColor, this.whiteColor, t);
         } else {
           // Settled: full mosaic, pure
+          const slice = photoSliceUV(card.slot.index)!;
+          applyUvWindow(card.baseGeometry, slice.u0, slice.u1, slice.v0, slice.v1);
           if (mat.map !== getPhotoTexture()) {
             mat.map = getPhotoTexture();
             mat.needsUpdate = true;
@@ -816,7 +787,6 @@ export class SphereScene {
   }
 
   private billboardHelper = new THREE.Object3D();
-  private tangentHelper = new THREE.Object3D();
 
   private computeBillboardQuat(from: THREE.Vector3, to: THREE.Vector3): THREE.Quaternion {
     this.billboardHelper.position.copy(from);
@@ -825,13 +795,7 @@ export class SphereScene {
     return this.billboardHelper.quaternion.clone();
   }
   private computeTangentQuat(outwardPos: THREE.Vector3): THREE.Quaternion {
-    const dir = this.tmpV3.copy(outwardPos).normalize();
-    if (Math.abs(dir.y) > 0.999) dir.x += 0.001;
-    dir.normalize();
-    this.tangentHelper.position.copy(outwardPos);
-    this.tangentHelper.up.copy(BILLBOARD_UP);
-    this.tangentHelper.lookAt(outwardPos.clone().add(dir));
-    return this.tangentHelper.quaternion.clone();
+    return tangentQuaternion(outwardPos);
   }
 
   private updateConnectors(frameRot: THREE.Quaternion, flightT: number, toggleT: number) {

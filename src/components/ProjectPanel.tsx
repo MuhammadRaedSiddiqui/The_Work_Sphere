@@ -20,7 +20,7 @@ export type ProjectPanelHandle = {
   getScrollElement: () => HTMLDivElement | null;
 };
 
-const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function ProjectPanel({ project, onClose, onNext, onPrev: _onPrev, showTeaser = true, enterFrom }, ref) {
+const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function ProjectPanel({ project, onClose, onNext, onPrev, showTeaser = true, enterFrom }, ref) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -127,6 +127,16 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
     animateClose(onClose);
   }, [animateClose, onClose]);
 
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      handleClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [handleClose]);
+
   // Project-to-project transition with threshold + overshoot + rubber-band (§11)
 
   return (
@@ -184,6 +194,9 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
           <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.45)" }}>
             {String(projectIndex + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
           </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {!showTeaser && onPrev && <button onClick={onPrev} aria-label="Previous project" style={panelArrowStyle}>←</button>}
+          {!showTeaser && onNext && <button onClick={onNext} aria-label="Next project" style={panelArrowStyle}>→</button>}
           <button
             onClick={handleClose}
             aria-label="Close"
@@ -201,6 +214,7 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
           >
             Close ✕
           </button>
+          </div>
         </div>
 
         {/* Scrollable body — hidden scrollbar §9 */}
@@ -218,14 +232,18 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
           {/* Hero image — native aspect banner: hero.jpg is ~1.83:1 uncropped */}
           <div style={{ width: "100%", background: "#0A0A0A", overflow: "hidden" }}>
             {!heroImgError ? (
-              <img
-                src={project.heroImage}
-                alt={project.title}
-                loading="eager"
-                decoding="async"
-                onError={() => setHeroImgError(true)}
-                style={{ width: "100%", height: "auto", display: "block" }}
-              />
+              <picture>
+                <source srcSet={project.heroImage.replace(/\.jpg$/, ".avif")} type="image/avif" />
+                <source srcSet={project.heroImage.replace(/\.jpg$/, ".webp")} type="image/webp" />
+                <img
+                  src={project.heroImage}
+                  alt={project.title}
+                  loading="eager"
+                  decoding="async"
+                  onError={() => setHeroImgError(true)}
+                  style={{ width: "100%", height: "auto", display: "block" }}
+                />
+              </picture>
             ) : (
               <img
                 src="/img/coming-soon.jpg"
@@ -235,7 +253,7 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
             )}
           </div>
 
-          <div style={{ padding: isMobile() ? "22px 18px 0" : "28px 28px 0" }}>
+          <div style={{ padding: isMobile() ? "22px 18px 6px" : "28px 28px 28px" }}>
             {/* Title + meta row §10.3 */}
             <h2 style={{ margin: 0, fontFamily: "system-ui, sans-serif", fontSize: isMobile() ? 28 : 32, fontWeight: 700, letterSpacing: "-0.02em", color: "#F5F5F7", lineHeight: 1.1 }}>
               {project.title}
@@ -379,4 +397,15 @@ const linkStyle: React.CSSProperties = {
   fontFamily: "system-ui, sans-serif",
   fontSize: 15,
   textDecoration: "none",
+};
+
+const panelArrowStyle: React.CSSProperties = {
+  appearance: "none",
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.06)",
+  color: "rgba(255,255,255,0.85)",
+  borderRadius: 999,
+  width: 30,
+  height: 30,
+  cursor: "pointer",
 };

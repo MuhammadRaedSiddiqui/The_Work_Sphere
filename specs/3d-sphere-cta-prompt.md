@@ -1,8 +1,22 @@
 # 3D Sphere Project-Grid — Hero / CTA Section
 
+> **Implementation alignment — 2026-08-30.** The current build is the reference for
+> values and behaviour in this document. The shared page, scene, and fog background is
+> true black (`#000`); card fill remains `#33333A`. The About-wall portrait is a
+> transparent PNG over that black field; its layout and contact details are specified in
+> the companion transition document.
+
+> **Amendment — 2026-09-02.** A third section (`work-section-spec.md`) now follows the
+> About wall. It amends this document in three places: the expanded project panel (§9–§11)
+> is extracted into a shared `ProjectPanel` component mounted by both sections; `Project`
+> gains a `lane` field (§13); and keyboard focus on a card must rotate the sphere to bring
+> that card into view (§14). Numeric constants shared across all three documents now live
+> in `src/config/constants.ts` — see work spec §0 for the ownership table. Values in this
+> document remain the reasoning of record; the module is the number of record.
+
 ## Concept
 
-A full-viewport hero section where the camera sits **inside** a hollow sphere made of rectangular cards, arranged in evenly spaced horizontal rings (like lines of latitude on a globe), so the visitor feels *surrounded by* a wireframe cage of project tiles rather than looking at a sphere from outside. The sphere idles in a slow auto-rotation with a subtle secondary wobble, can be spun manually by drag, and clicking any card expands it into a fullscreen scrollable project view. An optional toggle lets visitors pull back to an outside/orbit view of the same structure (§5). Scrolling further transitions into the About/personal-info section — that mechanic (sphere flattening into a grid, etc.) is specified separately in the companion *Sphere-to-About Transition* doc, not in this document.
+A full-viewport hero section where the camera sits **inside** a hollow sphere made of rectangular cards, arranged in evenly spaced horizontal rings (like lines of latitude on a globe), so the visitor feels *surrounded by* a wireframe cage of project tiles rather than looking at a sphere from outside. The sphere idles in a slow auto-rotation with a subtle secondary wobble, can be spun manually by drag, and clicking any card expands it into a fullscreen scrollable project view. An optional toggle lets visitors pull back to an outside/orbit view of the same structure (§5). Scrolling further transitions into the About/personal-info section — that mechanic (sphere flattening into a grid, etc.) is specified separately in the companion *Sphere-to-About Transition* doc, not in this document. Past the About wall sits a third section, the Work section, which presents the same 48 projects as a sortable index and an orbitable globe; see `work-section-spec.md`.
 
 Each card = a placeholder for one of my projects, to be filled in as the portfolio grows.
 
@@ -31,7 +45,7 @@ Worth being explicit about what it's *not* scoped for, since the interaction pat
 Two options were weighed:
 
 - **Dark background + light tiles:** guarantees strong contrast, so the ring/wireframe structure stays legible even on empty slots or against dark thumbnail images. But it risks looking like a grid of bright dashboard cards rather than an atmospheric scene, and a light frame competes with the image content sitting inside it rather than receding behind it.
-- **Dark background + dark tiles** (tonally close, e.g. background `#0A0A0A` vs. tile `#33333A`): far more cohesive and atmospheric — the frame nearly disappears, so thumbnails read as windows floating in space, which suits "a cage of images" better than loud rectangle borders. The hover glow also lands harder here: a tile that's barely visible at rest lighting up under the cursor is a bigger, more satisfying payoff than a tile that was already bright getting slightly brighter.
+- **Dark background + dark tiles** (tonally close, implemented as background `#000` vs. tile `#33333A`): far more cohesive and atmospheric — the frame nearly disappears, so thumbnails read as windows floating in space, which suits "a cage of images" better than loud rectangle borders. The hover glow also lands harder here: a tile that's barely visible at rest lighting up under the cursor is a bigger, more satisfying payoff than a tile that was already bright getting slightly brighter.
 
 **Recommendation:** dark-on-dark, with two refinements to protect legibility. First, give every tile a thin, subtle edge stroke (e.g. 1px, ~30–35% white opacity) even at idle, not just on hover. Second — and this is a correction from an earlier pass of this spec — don't go as tonally close as it might first seem right to. An initial version of this spec suggested tile fill only marginally lighter than the background (e.g. `#1C1C1E`, roughly an 18-value gap on a 0–255 scale) with a faint 10–15% edge stroke; tested in an actual build, that combination reads as essentially solid black on most screens — "atmospheric" tips into "invisible" well before you'd expect. `#33333A` fill with a ~30–35% opacity stroke is the tested floor for staying clearly legible while still reading as tonal, not stark — treat these as the actual starting values, not the more subtle ones, and only dial back down while checking contrast on your real target displays, not in the abstract.
 
@@ -41,8 +55,8 @@ Of the three tiers prototyped (flat / fog+vignette / fog+vignette+starfield), Ti
 
 ## 1. Visual Design
 
-- **Background:** dark, near-black (e.g. `#0A0A0A`) — flat base color, with `THREE.Fog` (matched to this same color) fading far-side cards with distance, plus a faint CSS radial vignette over the canvas (brighter center, darker edges). See Theme section above for the full reasoning; no starfield or other background decoration.
-- **Cards:** tonally dark fill, `#33333A` against the `#0A0A0A` background (see Theme section above — this is a corrected, tested value; an earlier pass of this spec used a fill too close to the background and rendered as solid black), with a thin subtle edge stroke (~30–35% white opacity) that stays visible at idle — this is what keeps the ring/wireframe structure legible against a dark background. A project thumbnail image fills most of the card (`object-fit: cover`).
+- **Background:** true black (`#000`) — flat base color, with `THREE.Fog` matched to it fading far-side cards with distance, plus a faint CSS radial vignette over the canvas (brighter center, darker edges). See Theme section above for the full reasoning; no starfield or other background decoration.
+- **Cards:** tonally dark fill, `#33333A` against the black background, with a thin subtle edge stroke (~33% white opacity) that stays visible at idle. A project thumbnail image fills most of the card (`object-fit: cover`).
 - **Card spacing:** consistent gap between cards on all sides (padding *around* each card, not inside it) so the ring/grid structure reads clearly through the negative space.
 - **Card content (idle state):** the project's thumbnail/cover image, edge-to-edge inside the thin stroke — no title text at idle size (titles are small enough at this distance that image recognition reads better than text). Full title/description/detail only appears on expand.
 - **Hover state:** the idle edge stroke intensifies into a soft glow/outline on pointer hover, plus a pointer cursor — an amplification of the always-visible stroke, not a new effect appearing from nothing.
@@ -110,7 +124,7 @@ The composition goal here: everything in this section should be **small, quiet, 
 
 - **Logo:** plain text wordmark, light/off-white, regular weight — no icon mark needed.
 - **Nav links:** muted off-white (~55–65% opacity) at rest, brightening to full opacity only on hover — no underlines, no active-state backgrounds. Restraint here is what keeps the header from competing with the sphere.
-- **Header CTA pill** (e.g. "Contact" / "Hire us"): a ghost button — thin light border (~20–25% white opacity), near-transparent fill, off-white text, fully rounded, modest padding. Deliberately not a bright filled block; reuses the same thin-stroke visual language already established for card edges and hover glow (§1, §3), so it reads as part of the same system rather than a separate UI kit.
+- **Header CTA pill:** labelled **“Availability”** in the current build; it is a 34px-high ghost button with a thin light border, near-transparent fill, off-white text, fully rounded shape, and modest horizontal padding. It deliberately reuses the thin-stroke visual language of the card edges and hover glow (§1, §3).
 - **Header background:** none — no bar color, no drop shadow. It should read as floating over the 3D scene, not sitting on top of it. An optional very faint blur is fine if nav text needs a touch more legibility over busy card imagery, but keep it subtle.
 - **Inside/outside toggle (§5):** lives in this same right-hand cluster alongside the header CTA, but rendered smaller and icon-only (no label) — grouped with the CTA spatially, subordinate to it visually, so the two utility/meta controls don't compete with the one actual call-to-action.
 
@@ -153,6 +167,8 @@ Two-stage animation on card click:
 - **Note:** the sphere itself is best implemented as a 3D scene (see below), but the expanded fullscreen project view is realistically its own HTML/DOM overlay (for real scrollable text, links, etc.) rather than a 3D-space element — the "zoom in" is a transition from the 3D card to this 2D overlay, not the 3D card itself growing in 3D space. Works identically regardless of inside/outside mode (§5).
 
 ## 10. Expanded Card Layout
+
+> **Amended 2026-09-02 — this panel is now a shared component.** The structure below is unchanged, but it is implemented as a section-agnostic `ProjectPanel` mounted by both this section and the Work section, rather than owned here. The Work spec §11 holds the props contract and records which concerns fork by caller: the opening animation (this section's 3D re-centre + blur vs. a rect-anchored scale), next/previous navigation (scroll-driven with clamp here per §11, arrow-driven there), and the next-project teaser (item 8 below — shown here, hidden there). Extraction happens **before** the Work section is built, so the dependency points from new code to shared code rather than from new section to old section.
 
 Keep the panel **dark** (consistent with the theme and the card fill), not a switch to a light background — the card animates from a small dark tile into this view, and flipping to light would break the "this card grew" illusion, turning it into a cross-fade instead. The `p-8` padding then does double duty: breathing room, and a visible ring of the blurred sphere behind the panel, echoing where the card just came from.
 
@@ -204,6 +220,7 @@ type Project = {
   role?: string;
   techStack?: string[];
   status: "planned" | "in-progress" | "shipped";
+  lane: "ai" | "tools" | "apps";   // added 2026-09-02 — see work spec §12
   content?: string;        // full case-study body (expanded view)
   gallery?: string[];      // additional screenshots
   links?: {
@@ -215,11 +232,15 @@ type Project = {
 
 Slots 0–6 hold the original shipped/in-progress flagships; slots 7–47 hold the 41 additional projects listed in Appendix B. Source of truth lives in `src/data/projects.ts` — the spec roster below is authoritative for card identity and ordering.
 
+**`lane` (added 2026-09-02):** authored per project, never derived from `techStack` at runtime — stack is a poor proxy for kind of work, and derivation would make the field mutate whenever a stack string is edited. It is consumed only by the Work section (grouping and the Lane column); it has **no effect on sphere placement**, which remains a pure function of the stable index per the transition spec §8. Full assignment lives in work spec Appendix C, not here, so this document keeps one roster rather than two.
+
 Cards without an assigned project (should none remain in prod) would render the "coming soon" placeholder texture described in §1.
 
 ## 14. Accessibility
 
 - All cards are keyboard-focusable (`tabindex`), in ring/reading order.
+- **Focus must bring the card into view (added 2026-09-02, fix #28).** As originally written this section had a real defect: 48 cards in tab order on a 3D object, with nothing guaranteeing the focused card is visible. In inside mode focus can and will land on a fogged card on the far side of the sphere, behind other cards — a focus ring on something the user cannot see. On focus, rotate the sphere to bring that card forward, reusing the stage-one re-centre from §9 without the expand: lerp `yaw → −card.φ` (unwrapped to the nearest equivalent angle, or the rotation takes the long way round) and `pitch → clamp(−card.lat · 0.55, ±0.55)`, releasing within ~0.004 rad. Any pointer drag cancels it immediately — user input always wins. Specified in full in work spec §9; both sections use the same helper.
+- **Skip link** past the hero, so keyboard users are not forced through 48 tab stops to reach the rest of the page.
 - `Enter` (or `Space`) on a focused card triggers the same expand animation as a click.
 - `Escape` closes an expanded project, same as the close button.
 - The inside/outside toggle (§6) is a standard focusable button — `Enter`/`Space` activates it, same as any other control.
@@ -228,9 +249,11 @@ Cards without an assigned project (should none remain in prod) would render the 
 
 ## 15. Performance
 
-- Target: full 3D sphere experience on all devices, but reduce card count on low-end/mobile devices rather than falling back to a flat 2D grid — detect via a capability heuristic (e.g. device memory, GPU tier, or simple viewport-width proxy) and drop to a lighter ring configuration (e.g. 4 rings × 6 cards) when needed. Connector lines (§3) should scale down or drop out entirely alongside the reduced card count. **This section is the single definition site for the device-tier gate:** the companion transition spec references this heuristic rather than defining its own. The transition spec adds two further gates on top (`prefers-reduced-motion` and a zone-visibility check) and falls back to a conventional About layout when any gate fails.
+- The current sphere keeps its fixed 48-card ring table on all supported devices; there is no reduced-card ring configuration. Instead, the **About transition** uses a device-tier gate and selects its conventional fallback when any of these are true: viewport width below 768px, `deviceMemory ≤ 2`, `hardwareConcurrency ≤ 2`, Save-Data enabled, or a coarse pointer below 1024px. The same transition fallback is used for `prefers-reduced-motion` and a failed zone-visibility check. The hero itself remains the 3D sphere.
 - Respect `prefers-reduced-motion`: disable/slow idle auto-rotation and wobble, and consider skipping the entrance fly-in in favor of a simple fade, and skipping the overshoot/spring on project transitions in favor of a plain cut, for users who've set that preference. The inside/outside toggle transition (§5) should similarly cut rather than fly/interpolate for these users. (The scroll-driven transition into the About section has its own device/motion fallback — see the companion *Sphere-to-About Transition* spec.)
-- Lazy/progressively load thumbnail and hero images (low-res placeholder → full image) rather than loading all 48 at once.
+- Lazy/progressively load thumbnail and hero images (low-res placeholder → full image) rather than loading all 48 at once. **Amended 2026-09-02:** ship the 48 thumbnails as a single texture atlas rather than 48 separate loads, and encode as AVIF/WebP rather than JPEG/PNG — the roster's images are high-detail and compress poorly, and this is where the page's weight actually sits. The atlas is shared with the Work section's globe (work spec §15); bind it once.
+- **This section's device-tier gate has three consumers now** (this document, transition §15, work spec §15) and remains the single definition site for all of them — do not restate the thresholds elsewhere. The values themselves live in `src/config/constants.ts` per work spec §0.
+- **Renderer ownership (added 2026-09-02).** The WebGL context now has three consumers: this hero, the About wall, and the Work section's Specimen globe. Introduce a scene-lifecycle manager that sections register with — who holds the renderer, who may drive the camera, and how "pause when off-screen" generalises — rather than continuing to handle each handoff as a special case. The mid-toggle interruption rule in transition §11 (never let two things drive the camera at once) becomes a general rule of that manager. See work spec §15.
 
 ## 16. Suggested Implementation
 
@@ -253,8 +276,12 @@ Cards without an assigned project (should none remain in prod) would render the 
 - Hover state: soft glow/outline, amplifying an always-visible idle edge stroke (§1).
 - Empty slots: "coming soon" texture/pattern, not blank (§1).
 - Entrance animation: cards fly/scale into position on load (§12).
-- Accessibility: keyboard nav (Tab + Enter/Escape) only, no separate list view (§14).
-- Performance: reduce card count on low-end/mobile devices (§15).
+- Accessibility: keyboard nav (Tab + Enter/Escape) only, no separate list view (§14) — **amended 2026-09-02:** focus on a card now rotates the sphere to bring it into view, and a skip link past the hero is required (§14, fix #28).
+- Performance: the sphere keeps its fixed 48-card ring table on all devices; the device-tier gate selects the *About transition's* fallback and the Work section's Index-only mode, not a reduced sphere (§15). *(Supersedes the earlier "reduce card count on low-end/mobile devices" entry, which never described the shipped behaviour.)*
+- 2026-09-02 — Expanded panel extracted to a shared `ProjectPanel` mounted by both this section and the Work section; opening animation, next/prev binding, and the teaser fork by caller (§10, fix #30, work spec §11).
+- 2026-09-02 — `Project` gains an authored `lane` field with no effect on sphere placement (§13, fix #29, work spec §12).
+- 2026-09-02 — Numeric constants shared across the three specs move to `src/config/constants.ts`; derived values (grid aspect, zone gate band) are computed and asserted rather than typed (work spec §0).
+- 2026-09-02 — Renderer gains a scene-lifecycle manager rather than a third bespoke handoff; thumbnails ship as one shared texture atlas in AVIF/WebP (§15, work spec §15).
 - Idle rotation includes a subtle secondary wobble axis (§7).
 - Pitch (vertical drag) is unclamped — free rotation, including upside-down (§8).
 - Drag release has momentum with exponential decay (§8).
@@ -280,6 +307,9 @@ Found by building against an earlier version of this spec — logged here since 
 25. Card fill and edge-stroke opacity corrected from `#1C1C1E` / ~10–15% to tested values of `#33333A` / ~30–35% — the original figures rendered as effectively solid black in an actual build; connector line opacity (§3) scaled proportionately (Theme section, §1, §3).
 26. Momentum on drag release must apply synchronously with zero delay, distinct from the separately-timed (decay-condition-based, not fixed-timeout) idle-rotation resume — these are two different trigger points that are easy to conflate in implementation (§7, §8).
 27. Connector-line occlusion in inside view is solved by draw order, not depth order. The §3/#23 recipe (lines `depthTest:true` tested against opaque cards) cannot work in inside view: with the camera at the sphere's center, connector chords are geometrically closer to the camera than the card faces, so depth-correct rendering draws the lines on top of the cards — exactly the reported symptom, and why applying #23 changed nothing. Fix: lines `transparent:true, depthWrite:false, depthTest:false, renderOrder = -1` (drawn first); cards `transparent:true, depthWrite:true` (rendered after, painting over the lines). This supersedes the §3 depth recipe and #23's "confirm the card material is not transparent" advice — that advice is the part that was wrong (§3, §16).
+28. Keyboard focus on a card must rotate the sphere to bring that card into view. As originally specified, §14 put 48 cards in tab order with no guarantee the focused card was on-screen — focus lands on fogged far-side cards behind other cards. The re-centre animation already exists (§9); focus reuses it without the expand. Angle unwrapping is required or the rotation takes the long way round (§14, work spec §9).
+29. `Project` gains a `lane` field, authored rather than derived, consumed only by the Work section and with no effect on sphere placement (§13, work spec §12).
+30. The expanded panel (§9–§11) is extracted to a shared `ProjectPanel` rather than remaining owned by this section. Left in place, the Work section would have had to mount hero code and every difference it needed would have landed as a conditional inside this section — the same cross-ownership coupling that produced corrections #23–#27 between this document and the transition spec, one layer up (§10, work spec §11).
 
 ## Appendix B — Full 48-Card Roster (slots 0–47)
 
@@ -343,3 +373,5 @@ Card detail contract (mirrors §13 `Project`): every entry carries `thumbnail` +
 ## Related documents
 
 `sphere-to-about-transition-spec.md` — companion spec covering the scroll-driven transition from this hero into the About/personal-info section (sphere flattening into a grid, camera pull-back, fallback behavior). Depends on this document's geometry (§2), connector lines (§3), and orbit-toggle interpolation approach (§5), but is intentionally kept separate since it governs a different section of the page.
+
+`work-section-spec.md` — third section, following the About wall: the same 48 projects as a sortable Index and an orbitable Specimen globe. Depends on this document's card system (§2), connector lines (§3), outside/orbit camera and tangent-to-surface orientation (§5), idle and drag physics (§7–§8), expanded-panel structure (§10), content model (§13), and device-tier gate (§15). It **amends** this document at §9–§11 (panel extraction), §13 (`lane`), §14 (focus-follows-rotation), and §15 (renderer ownership, atlas), and it **owns** the `ProjectPanel` contract, the `lane` roster, the routing scheme, and the shared-constants ownership table.

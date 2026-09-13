@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DISPLAY_FONT_FAMILY, LABEL_FONT_FAMILY } from "../constants";
 import { PHOTO_ALT, PHOTO_FINAL_SRC } from "../constants";
 
 /**
@@ -90,7 +91,7 @@ export default function FallbackAbout() {
             <div
               style={{
                 color: "rgba(255,255,255,0.52)",
-                fontFamily: "system-ui, sans-serif",
+                fontFamily: LABEL_FONT_FAMILY,
                 fontSize: 11,
                 fontWeight: 600,
                 letterSpacing: "0.14em",
@@ -105,9 +106,9 @@ export default function FallbackAbout() {
               style={{
                 margin: 0,
                 color: "rgba(255,255,255,0.96)",
-                fontFamily: "system-ui, sans-serif",
+                fontFamily: DISPLAY_FONT_FAMILY,
                 fontSize: "clamp(56px, 6.5vw, 84px)",
-                fontWeight: 900,
+                fontWeight: 700,
                 lineHeight: 0.92,
                 letterSpacing: "-0.04em",
                 textWrap: "balance",
@@ -116,13 +117,13 @@ export default function FallbackAbout() {
               <span style={{ display: "block" }}>Engineering</span>
               <span style={{ display: "block" }}>at the edge of</span>
               <span style={{ display: "block" }}>AI and</span>
-              <span style={{ display: "inline-block", background: "linear-gradient(90deg, #8A8A8A 0%, #D4D4D4 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent", fontWeight: 900 }}>Automation.</span>
+              <span style={{ display: "inline-block", background: "linear-gradient(90deg, #8A8A8A 0%, #D4D4D4 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", color: "transparent", fontWeight: 700 }}>Automation.</span>
             </h2>
             <p
               style={{
                 margin: "2px 0 0",
                 color: "rgba(255,255,255,0.58)",
-                fontFamily: "system-ui, sans-serif",
+                fontFamily: DISPLAY_FONT_FAMILY,
                 fontSize: 17,
                 lineHeight: 1.35,
                 letterSpacing: "0.01em",
@@ -135,7 +136,7 @@ export default function FallbackAbout() {
                 href="mailto:raedsiddiquie4@gmail.com"
                 style={{
                   color: "rgba(255,255,255,0.72)",
-                  fontFamily: "system-ui, sans-serif",
+                  fontFamily: DISPLAY_FONT_FAMILY,
                   fontSize: 16,
                   fontWeight: 500,
                   letterSpacing: "0.02em",
@@ -153,7 +154,7 @@ export default function FallbackAbout() {
                 rel="noopener noreferrer"
                 style={{
                   color: "rgba(255,255,255,0.72)",
-                  fontFamily: "system-ui, sans-serif",
+                  fontFamily: DISPLAY_FONT_FAMILY,
                   fontSize: 16,
                   fontWeight: 500,
                   letterSpacing: "0.02em",
