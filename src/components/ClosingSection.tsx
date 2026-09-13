@@ -1,99 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  CARD_ASPECT,
   CARD_COUNT,
-  CARD_FILL_COLOR,
   CLOSING_BODY_REVEAL_DELAY_MS,
   CLOSING_BODY_REVEAL_MS,
   CLOSING_BODY_REVEAL_TRANSLATE_Y_PX,
-  CLOSING_BORDER_REVEAL_DELAY_MS,
-  CLOSING_BORDER_REVEAL_MS,
-  CLOSING_CARD_MAX_VIEWPORT_WIDTH,
-  CLOSING_CARD_MAX_WIDTH_PX,
-  CLOSING_CARD_FLIP_MS,
-  CLOSING_CARD_PADDING_MAX_PX,
-  CLOSING_CARD_PADDING_MIN_PX,
-  CLOSING_CARD_PADDING_VIEWPORT_WIDTH,
   CLOSING_COLOPHON_REVEAL_DELAY_MS,
   CLOSING_COLOPHON_REVEAL_MS,
   CLOSING_COPY_RESET_MS,
-  CLOSING_PLACEHOLDER_FADE_MS,
-  CLOSING_REVEALED_STROKE_OPACITY,
+  CLOSING_MOTIF_RING_COUNT,
   CLOSING_REVEAL_DELAY_MS,
   CLOSING_REVEAL_THRESHOLD,
-  COMING_SOON_IMAGE_SRC,
   CONNECTOR_LINE_OPACITY,
   CONNECTOR_SEGMENT_COUNT,
   CONTROL_PILL_RADIUS_PX,
   DISPLAY_FONT_FAMILY,
-  IDLE_STROKE_OPACITY,
   LABEL_FONT_FAMILY,
   RING_TABLE,
 } from "../constants";
-import { buildConnectorPairs, cardSlots, SPHERE_RADIUS } from "../scene/layout";
 
 const EMAIL = "raedsiddiquie4@gmail.com";
 const GITHUB_URL = "https://github.com/MuhammadRaedSiddiqui";
-const AVAILABILITY = "Available for collaborations and contract work";
+const RESUME_URL = "https://www.linkedin.com/in/raedsiddiquie/";
 const mono = LABEL_FONT_FAMILY;
 const grotesk = DISPLAY_FONT_FAMILY;
+const CLOSING_MOTIF_CENTER = 500;
 
-type LatticePoint = { x: number; y: number; depth: number; angle: number; opacity: number };
-
-// A still 2D projection of the shared sphere topology. This gives the close a
-// quiet structural echo of the 48-card system without creating a WebGL scene.
-const CLOSING_LATTICE_POINTS: LatticePoint[] = cardSlots.map((slot) => {
-  const [x, y, z] = slot.position;
-  const yaw = 0.56;
-  const projectedX = x * Math.cos(yaw) + z * Math.sin(yaw);
-  const depth = -x * Math.sin(yaw) + z * Math.cos(yaw);
-  const depthFraction = (depth + SPHERE_RADIUS) / (SPHERE_RADIUS * 2);
-  const perspective = 0.78 + depthFraction * 0.38;
-  return {
-    x: 500 + projectedX * 43 * perspective,
-    y: 350 - y * 39 * perspective,
-    depth,
-    angle: Math.atan2(y, projectedX) * (180 / Math.PI) * 0.12,
-    opacity: 0.2 + depthFraction * 0.72,
-  };
-});
-const CLOSING_LATTICE_PAIRS = buildConnectorPairs();
-
-function connectorCurve(start: LatticePoint, end: LatticePoint, bridge: boolean) {
-  const pull = bridge ? 0.16 : 0.07;
-  const controlX = ((start.x + end.x) / 2) * (1 - pull) + 500 * pull;
-  const controlY = ((start.y + end.y) / 2) * (1 - pull) + 350 * pull;
-  return `M ${start.x} ${start.y} Q ${controlX} ${controlY} ${end.x} ${end.y}`;
-}
-
-function ClosingLattice() {
+function ClosingMotif() {
   return (
-    <svg className="closing-lattice" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <g className="closing-lattice-lines">
-        {CLOSING_LATTICE_PAIRS.map(([from, to], index) => {
-          const start = CLOSING_LATTICE_POINTS[from];
-          const end = CLOSING_LATTICE_POINTS[to];
-          const bridge = cardSlots[from].ring !== cardSlots[to].ring;
-          return <path key={index} className={bridge ? "is-bridge" : "is-ring"} d={connectorCurve(start, end, bridge)} opacity={(start.opacity + end.opacity) / 2} />;
-        })}
+    <svg className="closing-motif" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g className="closing-motif-rings">
+        {Array.from({ length: CLOSING_MOTIF_RING_COUNT }, (_, index) => (
+          <circle key={index} cx={CLOSING_MOTIF_CENTER} cy={CLOSING_MOTIF_CENTER} r={36 + index * 14} />
+        ))}
       </g>
-      <g className="closing-lattice-cards">
-        {CLOSING_LATTICE_POINTS.map((point, index) => {
-          const scale = 0.72 + ((point.depth + SPHERE_RADIUS) / (SPHERE_RADIUS * 2)) * 0.42;
-          return (
-            <rect
-              key={index}
-              x="-19"
-              y="-12"
-              width="38"
-              height="24"
-              rx="1"
-              transform={`translate(${point.x} ${point.y}) rotate(${point.angle}) scale(${scale})`}
-              opacity={point.opacity}
-            />
-          );
-        })}
-      </g>
+      <path className="closing-motif-axis" d={`M 0 ${CLOSING_MOTIF_CENTER} H 1000 M ${CLOSING_MOTIF_CENTER} 0 V 1000`} />
     </svg>
   );
 }
@@ -104,7 +44,6 @@ export default function ClosingSection() {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const [revealed, setRevealed] = useState(reduceMotion);
   const [copied, setCopied] = useState(false);
-  const [flipped, setFlipped] = useState(false);
 
   useEffect(() => {
     if (reduceMotion || !sectionRef.current) return;
@@ -125,7 +64,7 @@ export default function ClosingSection() {
       setCopied(true);
       window.setTimeout(() => setCopied(false), CLOSING_COPY_RESET_MS);
     } catch {
-      // The mailto link alongside this control remains the reliable fallback.
+      // The primary mailto link remains available when clipboard access is denied.
     }
   };
 
@@ -136,43 +75,39 @@ export default function ClosingSection() {
       className={`closing-section${revealed ? " is-revealed" : ""}${reduceMotion ? " reduce-motion" : ""}`}
       aria-labelledby="closing-heading"
     >
-      <ClosingLattice />
-      <div className="closing-card-shell">
-        <div className={`closing-card${flipped ? " is-flipped" : ""}`}>
-          <button
-            type="button"
-            className="closing-flip-button"
-            aria-label={flipped ? "Show closing card front" : "Flip closing card"}
-            aria-pressed={flipped}
-            onClick={() => setFlipped((previous) => !previous)}
-          />
-          <div className="closing-card-flipper">
-            <div className="closing-card-face closing-card-front">
-            <div className="closing-placeholder" aria-hidden="true">
-              <span>slot 49&nbsp;&nbsp;unassigned</span>
+      <ClosingMotif />
+      <header className="closing-header">
+        <div className="closing-wordmark">Raed Siddiqui</div>
+        <nav className="closing-nav" aria-label="Primary">
+          <a href="#work">Work</a>
+          <a href="#lab">Lab</a>
+          <a href="#about">About</a>
+          <a href="#close">Contact</a>
+        </nav>
+        <a className="closing-availability-link" href="#close">Availability</a>
+      </header>
+      <main className="closing-main">
+        <div className="closing-content">
+          <p className="closing-eyebrow">03 — The Close</p>
+          <h2 id="closing-heading">Looking for the next hard problem</h2>
+          <p className="closing-support">Let’s make something durable. Open to collaborations and contract work right now.</p>
+          <div className="closing-actions">
+            <div className="closing-primary-action">
+              <a href={`mailto:${EMAIL}`}>{EMAIL}</a>
+              <button type="button" onClick={copyEmail} aria-label={copied ? "Email address copied" : "Copy email address"}>
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="5" y="5" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.25" />
+                  <path d="M11 5V3.75A1.75 1.75 0 0 0 9.25 2H3.75A1.75 1.75 0 0 0 2 3.75v5.5C2 10.216 2.784 11 3.75 11H5" stroke="currentColor" strokeWidth="1.25" />
+                </svg>
+                <span className="closing-copy-status" aria-live="polite">{copied ? "Email address copied" : ""}</span>
+              </button>
             </div>
-            <div className="closing-body">
-              <p className="closing-index">03 — Contact&nbsp;&nbsp;49 / 48</p>
-              <h2 id="closing-heading">Looking for the next hard problem</h2>
-              <p className="closing-support">Let’s make something durable.</p>
-              <div className="closing-rule" />
-              <p className="closing-availability"><span aria-hidden="true">◌</span>{AVAILABILITY}</p>
-              <div className="closing-contact">
-                <a href={`mailto:${EMAIL}`}>{EMAIL}</a>
-                <button type="button" onClick={copyEmail} aria-label={copied ? "Email address copied" : "Copy email address"}>
-                  <span aria-live="polite">{copied ? "copied" : "copy"}</span>
-                </button>
-                <a href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub ↗</a>
-              </div>
-            </div>
-            </div>
-            <div className="closing-card-face closing-card-back" aria-hidden="true">
-              <span>slot 49&nbsp;&nbsp;unassigned</span>
-            </div>
+            <a className="closing-secondary-action" href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub ↗</a>
+            <a className="closing-secondary-action" href={RESUME_URL} target="_blank" rel="noreferrer">Resume ↗</a>
           </div>
         </div>
-      </div>
-      <footer className="closing-colophon">
+      </main>
+      <footer className="closing-footer">
         <p>{CARD_COUNT} cards&nbsp;&nbsp;{RING_TABLE.length} rings&nbsp;&nbsp;{CONNECTOR_SEGMENT_COUNT} connector segments</p>
         <p>TypeScript&nbsp;&nbsp;Python&nbsp;&nbsp;Rust&nbsp;&nbsp;Go</p>
       </footer>
@@ -182,21 +117,12 @@ export default function ClosingSection() {
 }
 
 const closingStyles = `
-  .closing-section { position:relative; isolation:isolate; min-height:100vh; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:48px 20px; overflow:hidden; background:#000; color:#ededf0; }
-  .closing-lattice { position:absolute; z-index:0; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; -webkit-mask-image:radial-gradient(ellipse 78% 74% at center, #000 22%, transparent 76%); mask-image:radial-gradient(ellipse 78% 74% at center, #000 22%, transparent 76%); }.closing-lattice-lines path { fill:none; stroke:rgba(255,255,255,${CONNECTOR_LINE_OPACITY}); stroke-width:1; }.closing-lattice-lines .is-bridge { stroke-opacity:.7; }.closing-lattice-cards rect { fill:rgba(51,51,58,.72); stroke:rgba(255,255,255,${IDLE_STROKE_OPACITY}); stroke-width:1; }
-  .closing-card-shell,.closing-colophon { position:relative; z-index:1; }.closing-card-shell { width:min(${CLOSING_CARD_MAX_WIDTH_PX}px, ${CLOSING_CARD_MAX_VIEWPORT_WIDTH}vw); aspect-ratio:${CARD_ASPECT}; perspective:1100px; }.closing-card { position:relative; width:100%; height:100%; overflow:hidden; box-sizing:border-box; background:#${CARD_FILL_COLOR.toString(16).padStart(6, "0")}; border:1px solid rgba(255,255,255,${IDLE_STROKE_OPACITY}); transform-style:preserve-3d; transition:border-color ${CLOSING_BORDER_REVEAL_MS}ms ease ${CLOSING_BORDER_REVEAL_DELAY_MS}ms, transform ${CLOSING_CARD_FLIP_MS}ms cubic-bezier(.2,.8,.2,1); }.closing-card.is-flipped { transform:rotateY(180deg); }
-  .closing-card-flipper { position:absolute; z-index:2; inset:0; pointer-events:none; transform-style:preserve-3d; }.closing-card-face { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; }.closing-card-back { display:flex; align-items:flex-end; box-sizing:border-box; padding:clamp(${CLOSING_CARD_PADDING_MIN_PX}px, ${CLOSING_CARD_PADDING_VIEWPORT_WIDTH}vw, ${CLOSING_CARD_PADDING_MAX_PX}px); background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,.03) 45%), url(${COMING_SOON_IMAGE_SRC}) center/cover no-repeat; color:rgba(255,255,255,.66); font:11px ${mono}; letter-spacing:.08em; text-transform:uppercase; transform:rotateY(180deg); }
-  .closing-flip-button { position:absolute; z-index:1; inset:0; width:100%; height:100%; border:0; padding:0; background:transparent; cursor:pointer; backface-visibility:hidden; -webkit-backface-visibility:hidden; }.closing-flip-button:focus-visible { outline:2px solid #ededf0; outline-offset:-4px; }
-  .closing-placeholder { position:absolute; inset:0; display:flex; align-items:flex-end; padding:clamp(${CLOSING_CARD_PADDING_MIN_PX}px, ${CLOSING_CARD_PADDING_VIEWPORT_WIDTH}vw, ${CLOSING_CARD_PADDING_MAX_PX}px); box-sizing:border-box; background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,.03) 45%), url(${COMING_SOON_IMAGE_SRC}) center/cover no-repeat; color:rgba(255,255,255,.66); font:11px ${mono}; letter-spacing:.08em; text-transform:uppercase; opacity:1; transition:opacity ${CLOSING_PLACEHOLDER_FADE_MS}ms ease; }
-  .closing-body { position:relative; z-index:2; display:flex; height:100%; box-sizing:border-box; flex-direction:column; justify-content:center; padding:clamp(${CLOSING_CARD_PADDING_MIN_PX}px, ${CLOSING_CARD_PADDING_VIEWPORT_WIDTH}vw, ${CLOSING_CARD_PADDING_MAX_PX}px); opacity:0; pointer-events:none; transform:translateY(${CLOSING_BODY_REVEAL_TRANSLATE_Y_PX}px); transition:opacity ${CLOSING_BODY_REVEAL_MS}ms ease ${CLOSING_BODY_REVEAL_DELAY_MS}ms, transform ${CLOSING_BODY_REVEAL_MS}ms ease ${CLOSING_BODY_REVEAL_DELAY_MS}ms; }
-  .closing-index { margin:0 0 14px; color:rgba(255,255,255,.48); font:11px ${mono}; letter-spacing:.08em; }
-  .closing-body h2 { max-width:420px; margin:0; font:700 clamp(25px, 3.3vw, 38px)/1.03 ${grotesk}; letter-spacing:-.045em; }
-  .closing-support { max-width:390px; margin:14px 0 0; color:rgba(255,255,255,.62); font:14px/1.45 ${grotesk}; }
-  .closing-rule { height:1px; margin:clamp(18px, 3vw, 28px) 0 14px; background:rgba(255,255,255,.16); }
-  .closing-availability { display:flex; align-items:center; gap:7px; margin:0; color:rgba(255,255,255,.8); font:11px ${mono}; }.closing-availability span { font-size:16px; line-height:1; animation:closing-pulse 1.6s ease-in-out infinite; } @keyframes closing-pulse { 50% { opacity:.35; } }
-  .closing-contact { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:14px; pointer-events:auto; font:11px ${mono}; }.closing-contact a,.closing-contact button { display:inline-flex; align-items:center; min-height:30px; box-sizing:border-box; appearance:none; border:1px solid rgba(255,255,255,.2); border-radius:${CONTROL_PILL_RADIUS_PX}px; padding:5px 10px; background:transparent; color:#ededf0; font:inherit; text-decoration:none; cursor:pointer; }.closing-contact a:hover,.closing-contact button:hover { background:rgba(255,255,255,.07); }
-  .closing-colophon { width:min(${CLOSING_CARD_MAX_WIDTH_PX}px, ${CLOSING_CARD_MAX_VIEWPORT_WIDTH}vw); color:rgba(255,255,255,.42); font:11px/1.55 ${mono}; letter-spacing:.025em; opacity:0; transition:opacity ${CLOSING_COLOPHON_REVEAL_MS}ms ease ${CLOSING_COLOPHON_REVEAL_DELAY_MS}ms; }.closing-colophon p { margin:0; }
-  .closing-section.is-revealed .closing-placeholder { opacity:0; }.closing-section.is-revealed .closing-body { opacity:1; transform:translateY(0); }.closing-section.is-revealed .closing-card { border-color:rgba(255,255,255,${CLOSING_REVEALED_STROKE_OPACITY}); }.closing-section.is-revealed .closing-colophon { opacity:1; }
-  .closing-section.reduce-motion .closing-placeholder { display:none; }.closing-section.reduce-motion .closing-body,.closing-section.reduce-motion .closing-colophon { opacity:1; transform:none; transition:none; }.closing-section.reduce-motion .closing-card { border-color:rgba(255,255,255,.62); transition:none; }.closing-section.reduce-motion .closing-availability span { animation:none; }
-  @media (max-width:520px) { .closing-section { padding:36px 16px; }.closing-index { margin-bottom:8px; }.closing-body h2 { font-size:clamp(21px, 7.4vw, 28px); }.closing-support { margin-top:8px; font-size:11px; }.closing-rule { margin:12px 0 9px; }.closing-availability,.closing-contact { font-size:10px; }.closing-contact { gap:8px; margin-top:9px; } }
+  .closing-section { position:relative; isolation:isolate; min-height:100vh; box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; padding:16px 24px 28px; background:#000; color:#ededf0; }
+  .closing-motif { position:absolute; z-index:0; inset:50% auto auto 50%; width:min(1080px, 112vw); height:min(1080px, 112vw); transform:translate(-50%,-50%); pointer-events:none; opacity:.72; }.closing-motif-rings circle,.closing-motif-axis { fill:none; stroke:rgba(255,255,255,${CONNECTOR_LINE_OPACITY}); stroke-width:1; }.closing-motif-rings circle:nth-child(-n+12) { stroke-opacity:.42; }.closing-motif-rings circle:nth-child(n+26) { stroke-opacity:.55; }.closing-motif-axis { stroke-opacity:.76; }
+  .closing-header { position:relative; z-index:1; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; min-height:38px; }.closing-wordmark { color:rgba(255,255,255,.9); font:600 13px ${mono}; letter-spacing:.12em; text-transform:uppercase; user-select:none; }.closing-nav { display:flex; align-items:center; gap:18px; }.closing-nav a { color:rgba(255,255,255,.6); font:500 13px ${mono}; letter-spacing:.02em; text-decoration:none; }.closing-nav a:hover { color:#ededf0; }.closing-availability-link { justify-self:end; display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:0 15px; box-sizing:border-box; border:1px solid rgba(255,255,255,.14); border-radius:${CONTROL_PILL_RADIUS_PX}px; background:rgba(255,255,255,.08); color:rgba(255,255,255,.92); font:500 13px ${mono}; letter-spacing:.02em; text-decoration:none; }
+  .closing-main { position:relative; z-index:1; flex:1; display:grid; align-content:center; padding:54px 0 48px; }.closing-content { max-width:760px; opacity:0; transform:translateY(${CLOSING_BODY_REVEAL_TRANSLATE_Y_PX}px); transition:opacity ${CLOSING_BODY_REVEAL_MS}ms ease ${CLOSING_BODY_REVEAL_DELAY_MS}ms, transform ${CLOSING_BODY_REVEAL_MS}ms ease ${CLOSING_BODY_REVEAL_DELAY_MS}ms; }.closing-eyebrow { margin:0 0 16px; color:rgba(255,255,255,.45); font:600 12px ${mono}; letter-spacing:.14em; text-transform:uppercase; }.closing-content h2 { max-width:720px; margin:0; font:700 clamp(42px, 6.3vw, 84px)/.95 ${grotesk}; letter-spacing:-.055em; text-wrap:balance; }.closing-support { max-width:570px; margin:20px 0 0; color:rgba(255,255,255,.66); font:clamp(15px,1.5vw,18px)/1.42 ${grotesk}; letter-spacing:-.01em; }
+  .closing-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:30px; font:500 14px ${mono}; }.closing-primary-action { display:inline-flex; align-items:stretch; min-height:42px; overflow:hidden; border-radius:${CONTROL_PILL_RADIUS_PX}px; background:#ededf0; color:#000; }.closing-primary-action a,.closing-primary-action button,.closing-secondary-action { display:inline-flex; align-items:center; justify-content:center; min-height:42px; box-sizing:border-box; border:1px solid transparent; border-radius:${CONTROL_PILL_RADIUS_PX}px; padding:0 16px; color:inherit; font:inherit; text-decoration:none; cursor:pointer; }.closing-primary-action a { padding-right:12px; }.closing-primary-action button { width:42px; border-left-color:rgba(0,0,0,.18); border-radius:0; padding:0; background:transparent; }.closing-copy-status { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }.closing-secondary-action { border-color:rgba(255,255,255,.28); background:transparent; color:#ededf0; }.closing-primary-action a:hover,.closing-primary-action button:hover { background:rgba(0,0,0,.08); }.closing-secondary-action:hover { background:rgba(255,255,255,.08); }
+  .closing-footer { position:relative; z-index:1; display:flex; justify-content:space-between; align-items:flex-end; gap:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,.12); color:rgba(255,255,255,.48); font:11px/1.55 ${mono}; letter-spacing:.025em; opacity:0; transition:opacity ${CLOSING_COLOPHON_REVEAL_MS}ms ease ${CLOSING_COLOPHON_REVEAL_DELAY_MS}ms; }.closing-footer p { margin:0; }.closing-footer p:last-child { text-align:right; }
+  .closing-section.is-revealed .closing-content,.closing-section.is-revealed .closing-footer { opacity:1; }.closing-section.is-revealed .closing-content { transform:translateY(0); }.closing-section.reduce-motion .closing-content,.closing-section.reduce-motion .closing-footer { opacity:1; transform:none; transition:none; }
+  @media (max-width:720px) { .closing-section { min-height:100svh; padding:14px 16px 20px; }.closing-header { grid-template-columns:1fr auto; }.closing-nav { display:none; }.closing-main { padding:42px 0; }.closing-content h2 { font-size:clamp(38px, 11vw, 58px); }.closing-support { margin-top:16px; }.closing-actions { margin-top:24px; }.closing-primary-action a { max-width:calc(100vw - 164px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.closing-footer { align-items:flex-start; flex-direction:column; gap:4px; }.closing-footer p:last-child { text-align:left; }.closing-motif { width:150vw; height:150vw; opacity:.54; } }
 `;

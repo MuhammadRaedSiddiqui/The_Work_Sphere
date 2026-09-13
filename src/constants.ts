@@ -76,6 +76,7 @@ export const CLOSING_COLOPHON_REVEAL_DELAY_MS = 750;
 export const CLOSING_COLOPHON_REVEAL_MS = 450;
 export const CLOSING_COPY_RESET_MS = 1600;
 export const CLOSING_CARD_FLIP_MS = 700;
+export const CLOSING_MOTIF_RING_COUNT = 34;
 
 // The shared thumbnail atlas is row-major by stable index (same 8×6 map as the wall).
 export const THUMBNAIL_ATLAS_COLUMNS = GRID_COLS;

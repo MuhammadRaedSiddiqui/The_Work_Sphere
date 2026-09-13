@@ -673,7 +673,7 @@ export default function App() {
             <a href="#work" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Work</a>
             <a href="#lab" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Lab</a>
             <a href="#about" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>About</a>
-            <a href="#contact" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Contact</a>
+            <a href="#close" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Contact</a>
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 10, pointerEvents: "auto" }}>
             <button
