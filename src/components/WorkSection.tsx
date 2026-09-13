@@ -505,6 +505,7 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
     <section id="work" className="work-section" aria-labelledby="work-heading" onKeyDown={handleKeyDown} tabIndex={-1}>
       <style>{workStyles}</style>
       <a className="work-skip" href="#work-heading">Skip to Work</a>
+      <p className="work-eyebrow">02 — Selected work</p>
       <h2 id="work-heading" className="work-heading">Work index</h2>
       <div className="work-toolbar">
         <div className="work-tabs" role="tablist" aria-label="Work view">
@@ -609,6 +610,7 @@ function Rail({ project, visible, onOpen, onPrevious, onNext, showThumbnail, vie
 
 const workStyles = `
   .work-section { --hair: rgba(255,255,255,.09); --faint: rgba(255,255,255,${CONNECTOR_LINE_OPACITY}); background:${background}; color:#ededf0; padding:72px clamp(20px, 4vw, 64px) 100px; font-family:${grotesk}; }
+  .work-eyebrow { margin:0 0 10px; color:rgba(255,255,255,.52); font:600 11px ${mono}; letter-spacing:.14em; text-transform:uppercase; }
   .work-heading { margin:0 0 28px; font-size:clamp(28px, 4vw, 50px); letter-spacing:-.04em; font-weight:700; }
   .work-skip { position:absolute; left:-9999px; } .work-skip:focus { left:20px; top:20px; z-index:4; background:#000; color:#fff; padding:8px; }
   .work-toolbar { position:sticky; top:0; z-index:3; min-height:52px; display:flex; justify-content:space-between; align-items:center; gap:18px; padding:8px 0; background:#000; border-bottom:1px solid var(--faint); }

@@ -88,7 +88,7 @@ export default function ClosingSection() {
               <span>slot 49&nbsp;&nbsp;unassigned</span>
             </div>
             <div className="closing-body">
-              <p className="closing-index">49 / 48</p>
+              <p className="closing-index">03 — Contact&nbsp;&nbsp;49 / 48</p>
               <h2 id="closing-heading">Looking for the next hard problem</h2>
               <p className="closing-support">Let’s make something durable.</p>
               <div className="closing-rule" />
