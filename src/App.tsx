@@ -54,6 +54,7 @@ export default function App() {
   const [enterFrom, setEnterFrom] = useState<DOMRect | undefined>();
   const [viewMode, setViewMode] = useState<"inside" | "outside">("inside");
   const [scrubP, setScrubP] = useState(0);
+  const [heroHeaderVisible, setHeroHeaderVisible] = useState(true);
 
   const handleAboutNavigation = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -77,6 +78,16 @@ export default function App() {
       delete (window as unknown as { __sceneLifecycle?: SceneLifecycleManager }).__sceneLifecycle;
       manager.dispose();
     };
+  }, []);
+
+  useEffect(() => {
+    if (!triggerRef.current) return;
+    const trigger = triggerRef.current;
+    const observer = new IntersectionObserver(([entry]) => {
+      setHeroHeaderVisible(entry.isIntersecting);
+    }, { threshold: 0.01 });
+    observer.observe(trigger);
+    return () => observer.disconnect();
   }, []);
 
   // ---- Gates (derived values live in src/constants.ts) --------------------
@@ -673,12 +684,15 @@ export default function App() {
         {/* Header — persists unchanged above wall at all progress (§13) */}
         <div
           style={{
-            position: "absolute",
+            position: "fixed",
             top: 0, left: 0, right: 0,
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "16px 24px",
             pointerEvents: "none",
             zIndex: 3,
+            opacity: heroHeaderVisible ? 1 : 0,
+            visibility: heroHeaderVisible ? "visible" : "hidden",
+            transition: "opacity 160ms ease, visibility 160ms step-end",
           }}
         >
           <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", userSelect: "none" }}>
