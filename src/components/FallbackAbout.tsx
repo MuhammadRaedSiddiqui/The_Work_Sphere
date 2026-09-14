@@ -92,7 +92,7 @@ export default function FallbackAbout() {
               style={{
                 color: "rgba(255,255,255,0.52)",
                 fontFamily: LABEL_FONT_FAMILY,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
                 letterSpacing: "0.14em",
                 marginLeft: "2.2rem",

@@ -16,6 +16,7 @@ import {
   WORK_RAIL_CROSSFADE_SWAP_MS,
   WORK_RAIL_STACK_BREAKPOINT_PX,
   WORK_RAIL_WIDTH_PX,
+  WORK_SECTION_HORIZONTAL_PADDING,
   WORK_STACK_FILTERS,
   WORK_STATUS_FILTERS,
 } from "../constants";
@@ -519,7 +520,7 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
           {activeFilters && <button type="button" className="work-clear" onClick={clearFilters}>Clear</button>}
         </div>
       </div>
-      <p className="work-live" aria-live="polite" aria-atomic="true">{filtered.length} of {allProjects.length} projects</p>
+      {/* <p className="work-live" aria-live="polite" aria-atomic="true">{filtered.length} of {allProjects.length} projects</p> */}
       <div className="work-layout">
         <main className="work-stage">
           {renderStage()}
@@ -610,8 +611,8 @@ function Rail({ project, visible, onOpen, onPrevious, onNext, showThumbnail, vie
 }
 
 const workStyles = `
-  .work-section { --hair: rgba(255,255,255,.09); --faint: rgba(255,255,255,${CONNECTOR_LINE_OPACITY}); background:${background}; color:#ededf0; padding:72px clamp(20px, 4vw, 64px) 100px; font-family:${grotesk}; }
-  .work-eyebrow { margin:0 0 10px; color:rgba(255,255,255,.52); font:600 11px ${mono}; letter-spacing:.14em; text-transform:uppercase; }
+  .work-section { --hair: rgba(255,255,255,.09); --faint: rgba(255,255,255,${CONNECTOR_LINE_OPACITY}); background:${background}; color:#ededf0; padding:72px ${WORK_SECTION_HORIZONTAL_PADDING} 100px; font-family:${grotesk}; }
+  .work-eyebrow { margin:0 0 10px; color:rgba(255,255,255,.52); font:600 12px ${mono}; letter-spacing:.14em; text-transform:uppercase; }
   .work-heading { margin:0 0 28px; font-size:clamp(28px, 4vw, 50px); letter-spacing:-.04em; font-weight:700; }
   .work-skip { position:absolute; left:-9999px; } .work-skip:focus { left:20px; top:20px; z-index:4; background:#000; color:#fff; padding:8px; }
   .work-toolbar { position:sticky; top:0; z-index:3; min-height:52px; display:flex; justify-content:space-between; align-items:center; gap:18px; padding:8px 0; background:#000; border-bottom:1px solid var(--faint); }

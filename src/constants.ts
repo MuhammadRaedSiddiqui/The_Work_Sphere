@@ -54,6 +54,7 @@ export const WORK_RAIL_WIDTH_PX = 320;
 export const WORK_RAIL_STACK_BREAKPOINT_PX = 980;
 export const WORK_RAIL_CROSSFADE_SWAP_MS = 100;
 export const WORK_INDEX_PAGE_SIZE = 10;
+export const WORK_SECTION_HORIZONTAL_PADDING = "clamp(20px, 4vw, 64px)";
 export const WORK_STATUS_FILTERS = ["shipped", "in-progress", "planned"] as const;
 export const WORK_STACK_FILTERS = ["TypeScript", "Python", "Rust", "Go"] as const;
 
