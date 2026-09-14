@@ -834,7 +834,7 @@ export default function App() {
                 left: 0,
                 color: "rgba(255,255,255,0.52)",
                 fontFamily: LABEL_FONT_FAMILY,
-                fontSize: "clamp(13px, calc(1vw + 1px), 16px)",
+                fontSize: 12,
                 fontWeight: 600,
                 letterSpacing: "0.14em",
                 lineHeight: 1,
