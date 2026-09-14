@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
+import { createPortal } from "react-dom";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SphereScene } from "./scene/SphereScene";
@@ -682,7 +683,7 @@ export default function App() {
         />
 
         {/* Header — persists unchanged above wall at all progress (§13) */}
-        <div
+        {createPortal(<div
           style={{
             position: "fixed",
             top: 0, left: 0, right: 0,
@@ -758,7 +759,7 @@ export default function App() {
               Availability
             </a>
           </div>
-        </div>
+        </div>, document.body)}
 
         {/* Hero headline + CTA — fades 0–0.12, distinct from About headline zone H (§13) */}
         <div
