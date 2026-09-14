@@ -55,7 +55,7 @@ export default function App() {
   const [enterFrom, setEnterFrom] = useState<DOMRect | undefined>();
   const [viewMode, setViewMode] = useState<"inside" | "outside">("inside");
   const [scrubP, setScrubP] = useState(0);
-  const [heroHeaderVisible, setHeroHeaderVisible] = useState(true);
+  const [heroSectionVisible, setHeroSectionVisible] = useState(true);
 
   const handleAboutNavigation = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -81,20 +81,19 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!triggerRef.current) return;
-    const trigger = triggerRef.current;
-    const observer = new IntersectionObserver(([entry]) => {
-      setHeroHeaderVisible(entry.isIntersecting);
-    }, { threshold: 0.01 });
-    observer.observe(trigger);
-    return () => observer.disconnect();
-  }, []);
-
   // ---- Gates (derived values live in src/constants.ts) --------------------
   const [isFallback, setIsFallback] = useState<boolean>(() => {
     try { return shouldUseFallback(); } catch { return false; }
   });
+
+  useEffect(() => {
+    if (!triggerRef.current) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      setHeroSectionVisible(entry.isIntersecting);
+    }, { threshold: 0.01 });
+    observer.observe(triggerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -478,6 +477,8 @@ export default function App() {
 
   const expandedProject = expandedIdx !== null ? filteredProjects[expandedIdx] : null;
   const canvasBlur = expandedIdx !== null ? "blur(14px) saturate(0.9)" : "blur(0px)";
+  const heroHeaderVisible = isFallback ? heroSectionVisible : scrubP < HERO_HEADLINE_FADE_END;
+  const heroHeaderOpacity = isFallback ? Number(heroSectionVisible) : Math.max(0, 1 - scrubP / HERO_HEADLINE_FADE_END);
   const scrubLocked = isFallback;
   const effectiveToggleHidden = expandedIdx !== null || (!scrubLocked && scrubP > TOGGLE_HIDE_END);
 
@@ -691,7 +692,7 @@ export default function App() {
             padding: "16px 24px",
             pointerEvents: "none",
             zIndex: 3,
-            opacity: heroHeaderVisible ? 1 : 0,
+            opacity: heroHeaderOpacity,
             visibility: heroHeaderVisible ? "visible" : "hidden",
             transition: "opacity 160ms ease, visibility 160ms step-end",
           }}
