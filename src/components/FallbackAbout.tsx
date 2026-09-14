@@ -40,6 +40,7 @@ export default function FallbackAbout() {
 
   return (
     <section
+      id="about"
       aria-label="About"
       style={{
         background: "#000",

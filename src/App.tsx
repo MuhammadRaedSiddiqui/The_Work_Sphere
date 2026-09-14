@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SphereScene } from "./scene/SphereScene";
@@ -53,6 +54,20 @@ export default function App() {
   const [enterFrom, setEnterFrom] = useState<DOMRect | undefined>();
   const [viewMode, setViewMode] = useState<"inside" | "outside">("inside");
   const [scrubP, setScrubP] = useState(0);
+
+  const handleAboutNavigation = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    const trigger = stRef.current;
+    if (!trigger) {
+      document.getElementById("about")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    window.history.replaceState(null, "", "#about");
+    window.scrollTo({
+      top: trigger.start + (trigger.end - trigger.start) * 0.9,
+      behavior: "smooth",
+    });
+  }, []);
 
   useEffect(() => {
     const manager = new SceneLifecycleManager();
@@ -670,7 +685,7 @@ export default function App() {
             Raed Siddiqui
           </div>
           <nav aria-label="Primary" style={{ display: "flex", alignItems: "center", gap: 18, pointerEvents: "auto" }}>
-            <a href="#about" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>About</a>
+            <a href="#about" onClick={handleAboutNavigation} style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>About</a>
             <a href="#work" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Work</a>
             <a href="#close" style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>Contact</a>
           </nav>
