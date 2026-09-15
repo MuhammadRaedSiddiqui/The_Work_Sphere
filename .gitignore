@@ -6,3 +6,5 @@ tsconfig.tsbuildinfo
 .DS_Store
 Thumbs.db
 gui-test-screenshots/
+
+.vercel

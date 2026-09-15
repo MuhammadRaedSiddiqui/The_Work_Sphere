@@ -1,0 +1,15 @@
+# Build output is produced on Vercel from source.
+dist/
+node_modules/
+tsconfig.tsbuildinfo
+
+# Local tooling and diagnostics are not site assets.
+.claude/
+gui-test-screenshots/
+closing_section_redesign.html
+performance-baseline.json
+performance-report.md
+
+# Imported reference material, not part of the portfolio.
+public/img/projects/devdocs-ai/AI Fluency_ A Crash Course _ The AI Agent Factory.html
+public/img/projects/devdocs-ai/AI Fluency_ A Crash Course _ The AI Agent Factory_files/
