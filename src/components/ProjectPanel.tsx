@@ -6,6 +6,37 @@ import type { Project } from "../types";
 
 const CARD_FILL_CSS = `#${CARD_FILL_COLOR.toString(16).padStart(6, "0")}`;
 
+function CaseStudyBody({ content }: { content: string }) {
+  // Some records put section copy on the same line as their Markdown heading.
+  // Split headings globally instead of assuming every heading owns a line.
+  const sections = Array.from(content.matchAll(/(?:^|\s)##\s+([\s\S]*?)(?=(?:\s+##\s+)|$)/g));
+
+  if (sections.length === 0) return <p style={{ margin: 0, fontWeight: 400 }}>{content}</p>;
+
+  return <>
+    {sections.map((match, index) => {
+      const raw = match[1].trim();
+      const [firstLine = "", ...remainingLines] = raw.split(/\n+/);
+      const separator = firstLine.indexOf(" — ");
+      const heading = separator >= 0 ? firstLine.slice(0, separator) : firstLine;
+      const body = [separator >= 0 ? firstLine.slice(separator + 3) : "", ...remainingLines].join("\n").trim();
+
+      return (
+        <section key={`${heading}-${index}`} style={{ marginTop: index === 0 ? 0 : 22 }}>
+          <h3 style={{ margin: "0 0 7px", fontSize: 14, fontWeight: 600, letterSpacing: "0.01em", color: "rgba(255,255,255,0.92)" }}>
+            {heading}
+          </h3>
+          {body.split(/\n\s*\n/).filter(Boolean).map((paragraph, paragraphIndex) => (
+            <p key={paragraphIndex} style={{ margin: paragraphIndex === 0 ? 0 : "0 0 14px", fontWeight: 400 }}>
+              {paragraph.trim()}
+            </p>
+          ))}
+        </section>
+      );
+    })}
+  </>;
+}
+
 export type ProjectPanelProps = {
   project: Project;
   onClose: () => void;
@@ -101,9 +132,6 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
         cb();
         return;
       }
-      const vw = window.innerWidth;
-      const isMobile = vw < 768;
-      const inset = isMobile ? 16 : 32;
       // Reverse zoom: shrink back toward origin or center
       const targetW = enterFrom?.width;
       const targetH = enterFrom?.height;
@@ -114,7 +142,6 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
       if (scrollRef.current) tl.to(scrollRef.current, { opacity: 0, duration: 0.18 }, 0);
       tl.to(overlay, { backgroundColor: "rgba(10,10,10,0)", duration: 0.32 }, 0);
       if (targetW && targetH && targetX !== undefined && targetY !== undefined) {
-        tl.to(panel, { left: inset, top: inset, width: vw - targetW, duration: 0 }, 0);
         tl.to(panel, { left: targetX, top: targetY, width: targetW, height: targetH, opacity: 0.2, scale: 0.96, duration: 0.42, ease: "expo.in" });
       } else {
         tl.to(panel, { opacity: 0, scale: 0.96, duration: 0.32, ease: "expo.in" });
@@ -285,22 +312,7 @@ const ProjectPanel = forwardRef<ProjectPanelHandle, ProjectPanelProps>(function 
             {/* Case-study body §10.5 */}
             {project.content && (
               <div style={{ marginTop: 20, fontFamily: "system-ui, sans-serif", fontSize: 16, lineHeight: 1.75, color: "rgba(255,255,255,0.78)" }}>
-                {project.content.split("\n").map((raw, i) => {
-                  const para = raw.trim();
-                  if (!para) return null;
-                  if (para.startsWith("## ")) {
-                    return (
-                      <h3 key={i} style={{ margin: i === 0 ? "0 0 8px" : "20px 0 8px", fontSize: 15, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.92)" }}>
-                        {para.replace(/^##\s*/, "")}
-                      </h3>
-                    );
-                  }
-                  return (
-                    <p key={i} style={{ margin: i === 0 ? 0 : "0 0 14px" }}>
-                      {para}
-                    </p>
-                  );
-                })}
+                <CaseStudyBody content={project.content} />
               </div>
             )}
 

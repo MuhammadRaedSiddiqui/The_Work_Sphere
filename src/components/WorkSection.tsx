@@ -23,7 +23,6 @@ import {
 import { animateFlipFromDelta, captureFlipRects, type FlipRectMap } from "../utils/flip";
 import { SceneLifecycleManager } from "../scene/SceneLifecycleManager";
 import { SpecimenScene } from "../scene/SpecimenScene";
-import { readWorkRoute, workRouteHref, type WorkRoute } from "../workRoute";
 import { isLowTierDevice } from "../utils/gates";
 
 type WorkView = "index" | "specimen";
@@ -95,21 +94,16 @@ function groupLabel(project: IndexedProject, sort: SortKey) {
   return project.status;
 }
 
-export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle: SceneLifecycleManager; urlMode?: boolean }) {
+export default function WorkSection({ lifecycle }: { lifecycle: SceneLifecycleManager }) {
   const [specimenAllowed, setSpecimenAllowed] = useState(() => !isLowTierDevice());
-  const initialRouteRef = useRef<WorkRoute | null>(urlMode ? readWorkRoute() : null);
-  const initialRoute = initialRouteRef.current;
-  const initialProject = initialRoute?.projectId ? allProjects.find((project) => project.id === initialRoute.projectId) : undefined;
   const [work, setWork] = useState<WorkState>(() => ({
-    view: initialRoute?.view === "specimen" && !isLowTierDevice() ? "specimen" : "index",
-    sort: initialRoute?.sort ?? "index",
-    dir: initialRoute?.dir ?? "asc",
-    cur: initialProject?.id ?? allProjects[0]?.id ?? "",
-    filters: initialRoute?.filters ?? { status: [], stack: [] },
+    view: "index",
+    sort: "index",
+    dir: "asc",
+    cur: allProjects[0]?.id ?? "",
+    filters: { status: [], stack: [] },
   }));
-  const workRef = useRef(work);
-  const historyReadyRef = useRef(!urlMode);
-  const [panelProjectId, setPanelProjectId] = useState<string | null>(() => initialProject?.id ?? null);
+  const [panelProjectId, setPanelProjectId] = useState<string | null>(null);
   const [panelEnterFrom, setPanelEnterFrom] = useState<DOMRect | undefined>();
   const [displayedProjectId, setDisplayedProjectId] = useState(work.cur);
   const [railVisible, setRailVisible] = useState(true);
@@ -148,53 +142,6 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
     if (specimenAllowed || work.view === "index") return;
     setWork((previous) => ({ ...previous, view: "index" }));
   }, [specimenAllowed, work.view]);
-
-  useEffect(() => {
-    workRef.current = work;
-  }, [work]);
-
-  const routeFor = useCallback((projectId: string | null): WorkRoute => ({
-    projectId,
-    view: workRef.current.view,
-    sort: workRef.current.sort,
-    dir: workRef.current.dir,
-    filters: workRef.current.filters,
-  }), []);
-
-  const pushPanelRoute = useCallback((projectId: string) => {
-    if (!urlMode) return;
-    window.history.pushState({ portfolioWork: true, panel: true }, "", workRouteHref(routeFor(projectId)));
-  }, [routeFor, urlMode]);
-
-  useEffect(() => {
-    if (!urlMode) return;
-    const route = readWorkRoute();
-    const syncFromLocation = () => {
-      const next = readWorkRoute();
-      const project = next.projectId ? allProjects.find((item) => item.id === next.projectId) : undefined;
-      setWork((previous) => ({ ...previous, view: next.view, sort: next.sort, dir: next.dir, filters: next.filters, cur: project?.id ?? previous.cur }));
-      setPanelProjectId(project?.id ?? null);
-    };
-    const existingState = window.history.state as { portfolioWork?: boolean; panel?: boolean } | null;
-    if (route.projectId && !existingState?.portfolioWork) {
-      window.history.replaceState({ portfolioWork: true, panel: false }, "", workRouteHref({ ...route, projectId: null }));
-      window.history.pushState({ portfolioWork: true, panel: true }, "", workRouteHref(route));
-    } else if (!existingState?.portfolioWork) {
-      window.history.replaceState({ portfolioWork: true, panel: false }, "", workRouteHref(route));
-    }
-    historyReadyRef.current = true;
-    window.addEventListener("popstate", syncFromLocation);
-    return () => window.removeEventListener("popstate", syncFromLocation);
-  }, [urlMode]);
-
-  useEffect(() => {
-    if (!urlMode || !historyReadyRef.current) return;
-    window.history.replaceState(
-      { portfolioWork: true, panel: Boolean(panelProjectId) },
-      "",
-      workRouteHref({ projectId: panelProjectId, view: work.view, sort: work.sort, dir: work.dir, filters: work.filters }),
-    );
-  }, [panelProjectId, urlMode, work.dir, work.filters, work.sort, work.view]);
 
   useEffect(() => {
     if (currentProject && currentProject.id !== work.cur) {
@@ -260,13 +207,8 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
       onOpen: (stableIndex, enterFrom) => {
         const project = allProjects.find((item) => item.stableIndex === stableIndex);
         if (!project) return;
-        if (!urlMode) {
-          window.location.assign(workRouteHref(routeFor(project.id)));
-          return;
-        }
         updateSelection(project.id);
         setPanelEnterFrom(enterFrom);
-        pushPanelRoute(project.id);
         setPanelProjectId(project.id);
       },
       onTileFrames: (frames) => {
@@ -297,7 +239,7 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
       scene.dispose();
       specimenSceneRef.current = null;
     };
-  }, [lifecycle, pushPanelRoute, routeFor, specimenAllowed, updateSelection, urlMode]);
+  }, [lifecycle, specimenAllowed, updateSelection]);
 
   useEffect(() => {
     const specimenVisible = work.view === "specimen";
@@ -313,10 +255,9 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
   }, [work.filters]);
 
   useEffect(() => {
-    if (work.view !== "specimen") return;
     const stableIndex = allProjects.find((project) => project.id === work.cur)?.stableIndex;
-    if (stableIndex !== undefined) specimenSceneRef.current?.selectStableIndex(stableIndex);
-  }, [work.cur, work.view]);
+    specimenSceneRef.current?.setSelectedStableIndex(stableIndex ?? null);
+  }, [work.cur]);
 
   const captureRows = useCallback(() => {
     if (tableRef.current) pendingFlip.current = captureFlipRects(tableRef.current.querySelectorAll("[data-flip-key]"));
@@ -372,37 +313,27 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
   }, []);
 
   const openProject = useCallback((project: IndexedProject, enterFrom?: DOMRect) => {
-    if (!urlMode) {
-      window.location.assign(workRouteHref(routeFor(project.id)));
-      return;
-    }
     updateSelection(project.id);
     setPanelEnterFrom(enterFrom);
-    pushPanelRoute(project.id);
     setPanelProjectId(project.id);
-  }, [pushPanelRoute, routeFor, updateSelection, urlMode]);
+  }, [updateSelection]);
 
   const closeProject = useCallback(() => {
-    if (!urlMode) {
-      setPanelProjectId(null);
-      return;
-    }
-    const state = window.history.state as { portfolioWork?: boolean; panel?: boolean } | null;
-    if (state?.portfolioWork && state.panel) {
-      window.history.back();
-      return;
-    }
     setPanelProjectId(null);
-    window.history.replaceState({ portfolioWork: true, panel: false }, "", workRouteHref(routeFor(null)));
-  }, [routeFor, urlMode]);
+    window.setTimeout(() => setPanelEnterFrom(undefined), 600);
+  }, []);
 
   const navigate = useCallback((direction: -1 | 1) => {
     if (work.view === "specimen") {
       const stableIndex = allProjects.find((project) => project.id === work.cur)?.stableIndex;
       if (stableIndex === undefined) return;
-      const nextStableIndex = specimenSceneRef.current?.moveSelection(stableIndex, direction < 0 ? "previous-ring" : "next-ring");
+      const scene = specimenSceneRef.current;
+      const nextStableIndex = scene?.moveSelection(stableIndex, direction < 0 ? "previous-ring" : "next-ring");
       const next = nextStableIndex === null || nextStableIndex === undefined ? undefined : allProjects.find((project) => project.stableIndex === nextStableIndex);
-      if (next) updateSelection(next.id);
+      if (next && nextStableIndex !== null && nextStableIndex !== undefined) {
+        updateSelection(next.id);
+        scene?.selectStableIndex(nextStableIndex);
+      }
       return;
     }
     if (!ordered.length) return;
@@ -414,6 +345,27 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
     updateSelection(next.id);
     if (panelProjectId) setPanelProjectId(next.id);
   }, [ordered, panelProjectId, updateSelection, work.cur, work.view]);
+
+  const navigateRail = useCallback((direction: -1 | 1) => {
+    // Rail and panel arrows browse projects, while Specimen's keyboard
+    // up/down remains the deliberate ring-to-ring navigation in §9.
+    const records = work.view === "index" ? ordered : filtered;
+    if (!records.length) return;
+    const currentIndex = Math.max(0, records.findIndex((project) => project.id === work.cur));
+    const nextIndex = (currentIndex + direction + records.length) % records.length;
+    const next = records[nextIndex];
+
+    if (work.view === "index") {
+      const requiredRows = Math.min(records.length, Math.ceil((nextIndex + 1) / WORK_INDEX_PAGE_SIZE) * WORK_INDEX_PAGE_SIZE);
+      setVisibleRowCount((previous) => Math.max(previous, requiredRows));
+    } else {
+      const stableIndex = next.stableIndex;
+      specimenSceneRef.current?.selectStableIndex(stableIndex);
+    }
+
+    updateSelection(next.id);
+    if (panelProjectId) setPanelProjectId(next.id);
+  }, [filtered, ordered, panelProjectId, updateSelection, work.cur, work.view]);
 
   const showMoreRows = useCallback(() => {
     setVisibleRowCount((previous) => Math.min(previous + WORK_INDEX_PAGE_SIZE, ordered.length));
@@ -434,9 +386,13 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
       event.preventDefault();
       const stableIndex = allProjects.find((project) => project.id === work.cur)?.stableIndex;
       const direction = event.key === "ArrowLeft" ? "previous-card" : "next-card";
-      const nextStableIndex = stableIndex === undefined ? null : specimenSceneRef.current?.moveSelection(stableIndex, direction);
+      const scene = specimenSceneRef.current;
+      const nextStableIndex = stableIndex === undefined ? null : scene?.moveSelection(stableIndex, direction);
       const next = nextStableIndex === null || nextStableIndex === undefined ? undefined : allProjects.find((project) => project.stableIndex === nextStableIndex);
-      if (next) updateSelection(next.id);
+      if (next && nextStableIndex !== null && nextStableIndex !== undefined) {
+        updateSelection(next.id);
+        scene?.selectStableIndex(nextStableIndex);
+      }
     }
     if (event.key === "Enter" && currentProject) {
       event.preventDefault();
@@ -553,14 +509,14 @@ export default function WorkSection({ lifecycle, urlMode = false }: { lifecycle:
             project={displayedProject}
             visible={railVisible}
             onOpen={(button) => openProject(displayedProject, button.getBoundingClientRect())}
-            onPrevious={() => navigate(-1)}
-            onNext={() => navigate(1)}
+            onPrevious={() => navigateRail(-1)}
+            onNext={() => navigateRail(1)}
             showThumbnail={work.view === "index"}
             view={work.view}
           />}
         </aside>
       </div>
-      {panelProject && <ProjectPanel project={panelProject} enterFrom={panelEnterFrom} showTeaser={false} onClose={closeProject} onPrev={() => navigate(-1)} onNext={() => navigate(1)} />}
+      {panelProject && <ProjectPanel project={panelProject} enterFrom={panelEnterFrom} showTeaser={false} onClose={closeProject} onPrev={() => navigateRail(-1)} onNext={() => navigateRail(1)} />}
     </section>
   );
 }
@@ -633,7 +589,7 @@ const workStyles = `
   .work-table tbody tr.is-selected td:first-child { box-shadow:inset 2px 0 #ededf0; }.work-group th { padding:17px 8px 7px; border-bottom:1px solid var(--hair); color:rgba(255,255,255,.42); font:11px ${mono}; text-align:left; text-transform:uppercase; letter-spacing:.08em; }
   .work-more { display:block; width:100%; margin-top:16px; padding:11px; appearance:none; border:1px solid rgba(255,255,255,${IDLE_STROKE_OPACITY}); border-radius:${CONTROL_PILL_RADIUS_PX}px; background:transparent; color:#ededf0; font:500 12px ${mono}; letter-spacing:.025em; cursor:pointer; }.work-more:hover { background:rgba(255,255,255,.07); }
   .work-status { display:inline-flex; gap:6px; align-items:center; text-transform:uppercase; font:11px ${mono}; white-space:nowrap; }.work-status i { font-style:normal; }.work-status-planned { opacity:.5; }.work-status-in-progress i { animation:work-status-pulse 1.6s ease-in-out infinite; } @keyframes work-status-pulse { 50% { opacity:.35; } }
-  .work-empty { color:rgba(255,255,255,.5); font:13px ${mono}; }.work-specimen-wrap { display:none; position:relative; }.work-specimen-wrap.is-visible { display:block; }.work-specimen-stage { position:relative; height:clamp(420px, 62vw, 700px); overflow:hidden; outline:none; -webkit-mask-image:radial-gradient(ellipse at center, #000 92%, transparent 100%); mask-image:radial-gradient(ellipse at center, #000 92%, transparent 100%); }.work-specimen-stage canvas { display:block; width:100%; height:100%; touch-action:none; }.work-specimen-tiles { position:absolute; inset:0; z-index:1; pointer-events:none; }.work-specimen-tile { display:none; position:absolute; padding:0; margin:0; border:0; background:transparent; pointer-events:none; }.work-specimen-tile:focus-visible { display:block; outline:2px solid rgba(255,255,255,.9); outline-offset:2px; }.work-specimen-caption { position:absolute; z-index:2; width:min(280px, 46%); pointer-events:none; transform:translateX(-50%); opacity:0; transition:opacity 100ms ease; color:#ededf0; text-align:center; font:11px ${mono}; line-height:1.45; }.work-specimen-caption strong,.work-specimen-caption span { display:block; }.work-specimen-caption strong { color:#ededf0; font:600 13px ${grotesk}; letter-spacing:-.01em; }.work-specimen-caption span { color:rgba(255,255,255,.56); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .work-empty { color:rgba(255,255,255,.5); font:13px ${mono}; }.work-specimen-wrap { display:none; position:relative; }.work-specimen-wrap.is-visible { display:block; }.work-specimen-stage { position:relative; height:clamp(420px, 62vw, 700px); overflow:hidden; outline:none; -webkit-mask-image:radial-gradient(ellipse at center, #000 92%, transparent 100%); mask-image:radial-gradient(ellipse at center, #000 92%, transparent 100%); }.work-specimen-stage canvas { display:block; width:100%; height:100%; touch-action:none; }.work-specimen-tiles { position:absolute; inset:0; z-index:1; pointer-events:none; }.work-specimen-tile { display:none; position:absolute; padding:0; margin:0; border:0; background:transparent; pointer-events:none; }.work-specimen-tile:focus-visible { display:block; outline:2px solid rgba(255,255,255,.9); outline-offset:2px; }.work-specimen-caption { position:absolute; z-index:2; width:min(320px, 52%); pointer-events:none; transform:translateX(-50%); opacity:0; transition:opacity 100ms ease; color:#ededf0; text-align:center; font:11px ${mono}; line-height:1.45; }.work-specimen-caption strong,.work-specimen-caption span { display:block; }.work-specimen-caption strong { color:#ededf0; font:600 13px ${grotesk}; letter-spacing:-.01em; }.work-specimen-caption span { color:rgba(255,255,255,.56); margin-top:2px; white-space:normal; overflow:visible; }
   .work-rail-content { transition:opacity ${WORK_RAIL_CROSSFADE_SWAP_MS}ms ease; }.work-rail-content.is-hidden { opacity:0; }.work-thumb { aspect-ratio:${CARD_ASPECT}; background:${cardFill}; border:1px solid rgba(255,255,255,${IDLE_STROKE_OPACITY}); overflow:hidden; }.work-thumb picture,.work-thumb img { display:block; width:100%; height:100%; }.work-thumb img { object-fit:cover; filter:grayscale(1); }
   .work-rail-title-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px; }.work-rail-title-row h3 { margin:0; font-size:20px; letter-spacing:-.025em; }.work-rail-title-row div { display:flex; gap:4px; }.work-rail-title-row button { width:28px; height:28px; padding:0; }
   .work-rail-content > p:not(.work-hints) { min-height:2.8em; margin:8px 0 18px; color:rgba(255,255,255,.58); font-size:13px; line-height:1.4; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }

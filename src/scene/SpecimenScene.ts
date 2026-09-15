@@ -60,6 +60,7 @@ export class SpecimenScene {
   private readonly localFacingQuaternion = new THREE.Quaternion();
   private readonly facingHelper = new THREE.Object3D();
   private detachedStableIndex: number | null = null;
+  private selectedStableIndex: number | null = null;
   private introFramesRemaining = 0;
   private readonly introRowRects = new Map<number, DOMRect>();
   private yawTarget: number | null = null;
@@ -99,6 +100,10 @@ export class SpecimenScene {
   getRenderScene() { return this.scene; }
   getRenderCamera() { return this.camera; }
   hasDetachedCard() { return this.detachedStableIndex !== null; }
+
+  setSelectedStableIndex(stableIndex: number | null) {
+    this.selectedStableIndex = stableIndex;
+  }
 
   beginIntro(rowRects: ReadonlyMap<string, DOMRect>) {
     this.reattach();
@@ -178,7 +183,10 @@ export class SpecimenScene {
   reattach() {
     if (this.detachedStableIndex === null) return;
     this.detachedStableIndex = null;
-    this.cards.forEach((card) => { card.detachTarget = 0; card.mesh.renderOrder = 0; });
+    this.cards.forEach((card) => {
+      card.detachTarget = 0;
+      this.setDetachedRenderState(card, false);
+    });
     this.options.onDetach(null);
   }
 
@@ -243,7 +251,9 @@ export class SpecimenScene {
       const detachedOpacity = card === activeCard ? 1 : 0.24;
       const targetOpacity = THREE.MathUtils.lerp(filterOpacity, detachedOpacity, maximumDetach);
       material.opacity = THREE.MathUtils.lerp(material.opacity, targetOpacity, 0.16);
-      (card.outline.material as THREE.LineBasicMaterial).opacity = material.opacity * IDLE_STROKE_OPACITY;
+      const outline = card.outline.material as THREE.LineBasicMaterial;
+      const strokeOpacity = card.slot.index === this.selectedStableIndex ? 0.62 : IDLE_STROKE_OPACITY;
+      outline.opacity = THREE.MathUtils.lerp(outline.opacity, material.opacity * strokeOpacity, 0.18);
       if (card !== activeCard && card.detach < 0.001 && this.introFramesRemaining === 0) {
         card.mesh.position.fromArray(card.slot.position);
         card.mesh.quaternion.copy(card.baseQuaternion);
@@ -392,8 +402,10 @@ export class SpecimenScene {
   };
 
   private applySpin(dx: number, dy: number) {
-    this.yaw += dx * SPHERE_DRAG_TO_RADIANS;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + dy * SPHERE_DRAG_TO_RADIANS, -0.7, 0.7);
+    // `outsidePointerDelta` mirrors the pointer first. Match the Hero's
+    // outside-mode rotation sign so the globe follows the drag in both views.
+    this.yaw -= dx * SPHERE_DRAG_TO_RADIANS;
+    this.pitch = THREE.MathUtils.clamp(this.pitch - dy * SPHERE_DRAG_TO_RADIANS, -0.7, 0.7);
   }
 
   private pick(event: PointerEvent): SpecimenCard | undefined {
@@ -426,7 +438,7 @@ export class SpecimenScene {
     this.detachedStableIndex = stableIndex;
     for (const card of this.cards) {
       card.detachTarget = card.slot.index === stableIndex ? 1 : 0;
-      card.mesh.renderOrder = card.slot.index === stableIndex ? 1 : 0;
+      this.setDetachedRenderState(card, card.slot.index === stableIndex);
     }
     this.options.onHover(stableIndex);
     this.options.onDetach(stableIndex);
@@ -445,6 +457,17 @@ export class SpecimenScene {
     this.localFacingQuaternion.copy(this.globeQuaternion).multiply(this.worldFacingQuaternion);
     card.mesh.quaternion.copy(card.baseQuaternion).slerp(this.localFacingQuaternion, card.detach);
     card.mesh.scale.setScalar(THREE.MathUtils.lerp(1, 2.9, card.detach));
+  }
+
+  private setDetachedRenderState(card: SpecimenCard, detached: boolean) {
+    card.mesh.renderOrder = detached ? 1 : 0;
+    // Draw order alone does not beat a previously written depth value. The
+    // lifted card must remain clean above the dimmed, rotating lattice.
+    card.mesh.material.depthTest = !detached;
+    card.mesh.material.needsUpdate = true;
+    const outline = card.outline.material as THREE.LineBasicMaterial;
+    outline.depthTest = !detached;
+    outline.needsUpdate = true;
   }
 
   /** Index → Specimen is evaluated from live card geometry, never a static keyframe. */

@@ -143,14 +143,19 @@ export default function App() {
     return projects.findIndex((x) => x?.id === p.id);
   };
 
-  const openProjectAtSlot = useCallback((slotIndex: number, _screenRect: DOMRect) => {
-    if (filteredProjects.length === 0) return;
+  const openProjectAtSlot = useCallback((slotIndex: number, screenRect: DOMRect) => {
     const project = projects[slotIndex];
     if (!project) return;
-    // Work owns the canonical case-study URL and deep-link shell. Navigating
-    // there also guarantees the hero/About scene never mounts on direct entry.
-    window.location.assign(`/work/${encodeURIComponent(project.id)}`);
-  }, [filteredProjects.length]);
+    const filteredIndex = filteredProjects.findIndex(({ id }) => id === project.id);
+    if (filteredIndex < 0) return;
+
+    // Hero panels remain in place so their close animation can return to the
+    // clicked sphere card. Case-study routes belong to the Work section.
+    setActiveSlotIndex(slotIndex);
+    setEnterFrom(screenRect);
+    sceneRef.current?.setExpandedSlot(slotIndex);
+    setExpandedIdx(filteredIndex);
+  }, [filteredProjects]);
 
   const activateCardSlot = useCallback((slotIndex: number) => {
     if (!availableCardSlotIndices.has(slotIndex)) return;
