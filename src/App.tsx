@@ -703,7 +703,7 @@ export default function App() {
           }}
         >
           <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: LABEL_FONT_FAMILY, fontSize: 13, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", userSelect: "none" }}>
-            Raed Siddiqui
+            Waseem Sabir
           </div>
           <nav aria-label="Primary" style={{ display: "flex", alignItems: "center", gap: 18, pointerEvents: "auto" }}>
             <a href="#about" onClick={handleAboutNavigation} style={{ color: "rgba(255,255,255,0.6)", fontFamily: LABEL_FONT_FAMILY, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em", textDecoration: "none" }}>About</a>

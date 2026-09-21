@@ -19,7 +19,7 @@ import {
   WORK_SECTION_HORIZONTAL_PADDING,
 } from "../constants";
 
-const EMAIL = "raedsiddiquie4@gmail.com";
+const EMAIL = "waseemx1488@gmail.com";
 const GITHUB_URL = "https://github.com/MuhammadRaedSiddiqui";
 const RESUME_URL = "https://www.linkedin.com/in/raedsiddiquie/";
 const mono = LABEL_FONT_FAMILY;
